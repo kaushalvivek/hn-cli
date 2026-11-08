@@ -388,6 +388,18 @@ impl Out {
 impl Cli {
     pub async fn run(self) -> Result<()> {
         let out = Out::new(&self);
+        // These commands are local-only and must work without a network stack
+        // or CA certificates (for example inside minimal containers).
+        if let Some(command) = &self.command {
+            match command {
+                Command::Capabilities => {
+                    println!("{}", serde_json::to_string_pretty(&capabilities()).unwrap());
+                    return Ok(());
+                }
+                Command::Drafts { clear } => return drafts_command(&out, *clear),
+                _ => {}
+            }
+        }
         let Some(command) = self.command else {
             let client = HackerNews::new()?;
             if !self.json && std::io::stdout().is_terminal() {
@@ -833,57 +845,57 @@ impl Cli {
             Command::Hidden(args) => {
                 activity_command(&client, &out, UserActivityKind::Hidden, args, "Hidden").await
             }
-            Command::Drafts { clear } => {
-                let mut drafts = load_drafts().unwrap_or_default();
-                if clear {
-                    drafts.clear();
-                    save_drafts(&drafts)?;
-                    if out.json {
-                        out.print_json(&json!({ "ok": true, "cleared": true }))?;
-                    } else {
-                        println!("Cleared saved drafts.");
-                    }
-                    return Ok(());
-                }
-                if out.json {
-                    out.print_json(&drafts)?;
-                    return Ok(());
-                }
-                if drafts.is_empty() {
-                    println!("No saved drafts.");
-                    return Ok(());
-                }
-                let mut entries: Vec<_> = drafts.iter().collect();
-                entries.sort_by_key(|(key, _)| key.as_str());
-                for (key, draft) in entries {
-                    println!(
-                        "{}  {}",
-                        out.bold(key),
-                        out.dim(&draft.saved_at.format("%Y-%m-%d %H:%M").to_string())
-                    );
-                    println!("  {}", excerpt(&draft.text, 120));
-                    if let Some(id) = draft_target(key) {
-                        let command = if key.starts_with("comment:") {
-                            Some(format!("hn comment {id} --use-draft"))
-                        } else if key.starts_with("edit:") {
-                            Some(format!("hn edit {id} --use-draft"))
-                        } else {
-                            None
-                        };
-                        if let Some(command) = command {
-                            println!("  {}", out.dim(&command));
-                        }
-                    }
-                    println!();
-                }
-                Ok(())
-            }
-            Command::Capabilities => {
-                println!("{}", serde_json::to_string_pretty(&capabilities()).unwrap());
-                Ok(())
+            Command::Drafts { .. } | Command::Capabilities => {
+                unreachable!("capabilities and drafts are handled before client creation")
             }
         }
     }
+}
+
+fn drafts_command(out: &Out, clear: bool) -> Result<()> {
+    let mut drafts = load_drafts().unwrap_or_default();
+    if clear {
+        drafts.clear();
+        save_drafts(&drafts)?;
+        if out.json {
+            out.print_json(&json!({ "ok": true, "cleared": true }))?;
+        } else {
+            println!("Cleared saved drafts.");
+        }
+        return Ok(());
+    }
+    if out.json {
+        out.print_json(&drafts)?;
+        return Ok(());
+    }
+    if drafts.is_empty() {
+        println!("No saved drafts.");
+        return Ok(());
+    }
+    let mut entries: Vec<_> = drafts.iter().collect();
+    entries.sort_by_key(|(key, _)| key.as_str());
+    for (key, draft) in entries {
+        println!(
+            "{}  {}",
+            out.bold(key),
+            out.dim(&draft.saved_at.format("%Y-%m-%d %H:%M").to_string())
+        );
+        println!("  {}", excerpt(&draft.text, 120));
+        if let Some(id) = draft_target(key) {
+            let command = if key.starts_with("comment:") {
+                Some(format!("hn comment {id} --use-draft"))
+            } else if key.starts_with("edit:") {
+                Some(format!("hn edit {id} --use-draft"))
+            } else {
+                None
+            };
+            if let Some(command) = command {
+                println!("  {}", out.dim(&command));
+            }
+        }
+        println!();
+    }
+    Ok(())
 }
 
 async fn feed_command(

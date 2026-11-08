@@ -195,7 +195,10 @@ impl HttpTransport for ReqwestTransport {
 }
 
 pub fn user_agent() -> String {
-    "hn/0.3.0 (+https://github.com/kaushalvivek/hn-cli)".into()
+    format!(
+        "hn/{} (+https://github.com/kaushalvivek/hn-cli)",
+        env!("CARGO_PKG_VERSION")
+    )
 }
 
 pub fn form_encode(fields: &[(String, String)]) -> String {

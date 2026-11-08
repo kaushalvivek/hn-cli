@@ -45,7 +45,7 @@ Detects macOS or Linux and Apple Silicon, Intel, or arm64. Installs to `~/.local
 | Linux aarch64 | `hn-linux-aarch64.tar.gz` |
 
 ```bash
-VERSION=0.3.0
+VERSION=0.3.1
 ASSET=hn-linux-x86_64.tar.gz   # or hn-macos-universal.tar.gz
 curl -LO "https://github.com/kaushalvivek/hn-cli/releases/download/v${VERSION}/${ASSET}"
 curl -LO "https://github.com/kaushalvivek/hn-cli/releases/download/v${VERSION}/checksums.txt"
