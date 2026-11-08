@@ -36,8 +36,8 @@ git push origin v0.3.0
 The `Release` workflow builds on native runners:
 
 1. macOS universal (`arm64` + `x86_64`, ad-hoc signed).
-2. Linux `x86_64`.
-3. Linux `aarch64`.
+2. Linux `x86_64`, statically linked against musl.
+3. Linux `aarch64`, statically linked against musl.
 
 Each platform runs the test suite and produces both a versioned archive
 (`hn-v0.3.0-<platform>.tar.gz`) and a stable alias (`hn-<platform>.tar.gz`).

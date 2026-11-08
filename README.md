@@ -18,7 +18,7 @@
 
 ## Install
 
-`hn` is a single Rust binary for macOS and Linux. No runtime, no Xcode, no Swift.
+`hn` is a single Rust binary for macOS and Linux. The Linux build is static; no runtime, no Xcode, no Swift.
 
 ### Homebrew (macOS and Linux)
 
@@ -34,7 +34,7 @@ brew install kaushalvivek/tap/hn
 curl -fsSL https://raw.githubusercontent.com/kaushalvivek/hn-cli/main/install.sh | sh
 ```
 
-Detects macOS or Linux and Apple Silicon, Intel, or arm64. Installs to `~/.local/bin`; override with `HN_INSTALL_DIR`.
+Detects macOS or Linux and Apple Silicon, Intel, or arm64. Installs to `~/.local/bin`; override with `HN_INSTALL_DIR`. On minimal Linux systems, install `ca-certificates` for HTTPS.
 
 ### Direct download
 
@@ -55,7 +55,7 @@ mkdir -p ~/.local/bin
 install -m 755 hn ~/.local/bin/hn
 ```
 
-Linux builds target glibc. On Alpine or another musl-only system, build from source.
+Linux release binaries are statically linked against musl and run on any distribution. They need CA certificates (normally already installed) for HTTPS.
 
 ### Cargo
 

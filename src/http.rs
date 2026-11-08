@@ -96,17 +96,28 @@ pub struct ReqwestTransport {
 
 impl ReqwestTransport {
     pub fn new() -> Result<Self> {
+        // `reqwest` is built without a built-in crypto provider so Linux
+        // binaries can ship statically against musl. Install `ring` once.
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let client = reqwest::Client::builder()
             .user_agent(user_agent())
             .timeout(std::time::Duration::from_secs(30))
             .build()
-            .map_err(|error| HnError::Transport(error.to_string()))?;
+            .map_err(|error| {
+                HnError::Transport(format!(
+                    "could not build the HTTP client: {error}; on Linux make sure CA certificates are installed"
+                ))
+            })?;
         let no_redirect = reqwest::Client::builder()
             .user_agent(user_agent())
             .timeout(std::time::Duration::from_secs(30))
             .redirect(Policy::none())
             .build()
-            .map_err(|error| HnError::Transport(error.to_string()))?;
+            .map_err(|error| {
+                HnError::Transport(format!(
+                    "could not build the HTTP client: {error}; on Linux make sure CA certificates are installed"
+                ))
+            })?;
         Ok(Self {
             client,
             no_redirect,

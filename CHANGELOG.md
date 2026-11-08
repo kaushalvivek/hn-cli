@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Rewrote `hn` in Rust. The Swift implementation remains available at `v0.2.1`.
 - macOS and Linux are both first-class: Apple Silicon, Intel, Linux x86_64, and Linux aarch64 release assets.
+- Linux binaries are static musl builds that run on any distribution, not just recent glibc systems.
 - Replaced the Swift Package build with Cargo, `rustfmt`, `clippy`, and native CI on all three platforms.
 - Homebrew now installs the Rust binary on macOS and Linux from the consolidated `kaushalvivek/tap`.
 

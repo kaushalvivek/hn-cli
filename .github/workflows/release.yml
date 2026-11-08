@@ -74,23 +74,34 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
 
+      - name: Install musl tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
       - name: Test
         run: cargo test --all-targets
 
-      - name: Build
-        run: cargo build --release
+      - name: Build static binary
+        env:
+          CC_x86_64_unknown_linux_musl: musl-gcc
+          AR_x86_64_unknown_linux_musl: ar
+        run: cargo build --release --target x86_64-unknown-linux-musl
 
       - name: Package
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
           mkdir -p dist
-          cp target/release/hn dist/hn
+          cp target/x86_64-unknown-linux-musl/release/hn dist/hn
           chmod 755 dist/hn
+          file dist/hn
           cp LICENSE dist/LICENSE
           cp README.md dist/README.md
 
@@ -118,23 +129,34 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-musl
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
 
+      - name: Install musl tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
       - name: Test
         run: cargo test --all-targets
 
-      - name: Build
-        run: cargo build --release
+      - name: Build static binary
+        env:
+          CC_aarch64_unknown_linux_musl: musl-gcc
+          AR_aarch64_unknown_linux_musl: ar
+        run: cargo build --release --target aarch64-unknown-linux-musl
 
       - name: Package
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
           mkdir -p dist
-          cp target/release/hn dist/hn
+          cp target/aarch64-unknown-linux-musl/release/hn dist/hn
           chmod 755 dist/hn
+          file dist/hn
           cp LICENSE dist/LICENSE
           cp README.md dist/README.md
 
