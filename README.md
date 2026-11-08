@@ -9,7 +9,7 @@
     <a href="https://github.com/kaushalvivek/hn-cli/releases/latest"><img src="https://img.shields.io/github/v/release/kaushalvivek/hn-cli?style=flat-square&color=ff6600" alt="Latest release"></a>
     <a href="https://github.com/kaushalvivek/hn-cli/blob/main/LICENSE"><img src="https://img.shields.io/github/license/kaushalvivek/hn-cli?style=flat-square" alt="License"></a>
     <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="macOS and Linux">
-    <img src="https://img.shields.io/badge/Rust-1.85%2B-orange?style=flat-square" alt="Rust 1.85+">
+    <img src="https://img.shields.io/badge/Rust-1.88%2B-orange?style=flat-square" alt="Rust 1.88+">
     <a href="https://github.com/kaushalvivek/homebrew-tap"><img src="https://img.shields.io/badge/homebrew-kaushalvivek%2Ftap%2Fhn-orange?style=flat-square" alt="Homebrew"></a>
   </p>
 </div>
@@ -63,7 +63,7 @@ Linux builds target glibc. On Alpine or another musl-only system, build from sou
 cargo install --locked --git https://github.com/kaushalvivek/hn-cli
 ```
 
-Requires Rust 1.85+.
+Requires Rust 1.88+.
 
 ### From source
 

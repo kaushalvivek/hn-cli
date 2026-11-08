@@ -5,7 +5,7 @@ Thanks for helping make `hn` better.
 ## Requirements
 
 - macOS or Linux
-- Rust 1.85+ (`rustup` recommended)
+- Rust 1.88+ (`rustup` recommended)
 - A terminal with truecolor support is recommended
 
 ## Development
