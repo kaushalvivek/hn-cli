@@ -96,12 +96,10 @@ extension HackerNewsSiteClient: AccountProvider {
 
         var fields = form.hiddenFields
         fields["text"] = submission.text
-        if fields["parent"] == nil {
-            fields["parent"] = String(parentID)
-        }
-        if fields["goto"] == nil {
-            fields["goto"] = referer
-        }
+        // Do not trust a stale hidden parent from a reused form page. The
+        // composer target is authoritative.
+        fields["parent"] = String(parentID)
+        fields["goto"] = referer
 
         let path = form.action.isEmpty || form.action == "#" ? "comment" : form.action
         let response = try await request(

@@ -373,3 +373,31 @@ private func siteClient(
     #expect(session?.userID == UserID("alice"))
     #expect(try store.load() != nil)
 }
+
+@Test func siteCommentUsesTheRequestedParentOverStaleFormValue() async throws {
+    let mock = MockHTTPClient { request in
+        switch request.url.path {
+        case "/item":
+            return makeResponse(for: request, body: Fixtures.commentFormPage)
+        case "/comment":
+            return HTTPResponse(
+                statusCode: 200,
+                headers: [:],
+                body: Data("<html>ok</html>".utf8),
+                finalURL: URL(string: "https://news.ycombinator.com/item?id=2#99")!
+            )
+        default:
+            return makeResponse(for: request, status: 404, body: "")
+        }
+    }
+    let client = siteClient(mock, store: sessionStore())
+
+    _ = try await client.submitComment(
+        CommentSubmission(parentID: ItemID(2), text: "hello")
+    )
+
+    let post = try #require(await mock.requests().first(where: { $0.url.path == "/comment" }))
+    let body = bodyText(post)
+    #expect(body.contains("parent=2"))
+    #expect(body.contains("goto=item%3Fid%3D2"))
+}

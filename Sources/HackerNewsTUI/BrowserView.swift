@@ -157,6 +157,9 @@ public enum BrowserView {
         case .confirm:
             mode = "CONFIRM"
             hints = "y confirm · n cancel"
+        case .compose:
+            mode = "COMPOSE"
+            hints = "ctrl-s post · esc save draft · ctrl-e editor"
         case .none:
             if state.focus == .sidebar {
                 mode = "FEEDS"
@@ -178,6 +181,7 @@ public enum BrowserView {
             case .login: shorter = "tab · enter · esc"
             case .prompt: shorter = "enter · esc"
             case .confirm: shorter = "y/n"
+            case .compose: shorter = "ctrl-s · esc · ctrl-e"
             case .help: shorter = "esc"
             case .none:
                 switch state.focus {
@@ -853,6 +857,18 @@ public enum BrowserView {
     private static func drawOverlay(_ state: BrowserState, _ screen: Screen, layout: Layout) {
         guard let overlay = state.overlay else { return }
 
+        // Modal scrim: hide the feed/list/detail content behind the overlay so
+        // stray text at the edges cannot visually collide with the modal.
+        screen.fill(
+            Rect(
+                x: 0,
+                y: layout.bodyY,
+                width: screen.width,
+                height: layout.bodyHeight
+            ),
+            style: .plain
+        )
+
         switch overlay {
         case .help:
             let rect = centeredRect(
@@ -992,6 +1008,141 @@ public enum BrowserView {
                 x: rect.x + 2,
                 y: rect.maxY - 2
             )
+
+        case .compose(let compose):
+            drawCompose(state, compose, screen, layout: layout)
+        }
+    }
+
+    private static func drawCompose(
+        _ state: BrowserState,
+        _ compose: ComposeState,
+        _ screen: Screen,
+        layout: Layout
+    ) {
+        let width = min(100, max(30, screen.width - 4))
+        let height = min(30, max(14, layout.bodyHeight - 2))
+        let rect = centeredRect(
+            width: width,
+            height: height,
+            screen: screen,
+            bodyY: layout.bodyY,
+            bodyHeight: layout.bodyHeight
+        )
+        drawBox(screen, rect, title: compose.kind.title)
+
+        let inner = rect.inset(by: 1)
+        var compose = compose
+        var y = inner.y
+
+        var contextLine = StyledText()
+        contextLine.append(compose.context.label + " ", style: Theme.accent)
+        if let author = compose.context.author {
+            contextLine.append(author.rawValue, style: Theme.link)
+        }
+        if let storyTitle = compose.context.storyTitle, !storyTitle.isEmpty {
+            contextLine.append(" · " + storyTitle, style: Theme.muted)
+        }
+        screen.put(contextLine.truncated(to: inner.width), x: inner.x, y: y)
+        y += 1
+
+        if let excerpt = compose.context.excerpt, !excerpt.isEmpty, y < inner.maxY - 8 {
+            let quote = excerpt
+                .replacingOccurrences(of: "\n", with: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            for line in TUIText.wrap("> " + quote, width: inner.width).prefix(2) {
+                screen.put(StyledText(line, style: Theme.muted), x: inner.x, y: y)
+                y += 1
+            }
+        }
+
+        if compose.restoredDraft, y < inner.maxY - 8 {
+            screen.put(
+                StyledText("draft restored", style: Theme.warning),
+                x: inner.x,
+                y: y
+            )
+            y += 1
+        }
+
+        screen.hline(x: inner.x, y: y, width: inner.width, style: Theme.border)
+        y += 1
+
+        let statusY = inner.maxY - 2
+        let hintY = inner.maxY - 1
+        let textTop = y
+        let textBottom = statusY - 1
+        let textHeight = max(1, textBottom - textTop + 1)
+        let layoutText = ComposeLayoutBuilder.build(text: compose.text, width: inner.width)
+        let maxScroll = max(0, layoutText.lines.count - 1)
+        var scroll = min(max(0, compose.scroll), maxScroll)
+        if layoutText.cursorLine < scroll {
+            scroll = layoutText.cursorLine
+        } else if layoutText.cursorLine >= scroll + textHeight {
+            scroll = layoutText.cursorLine - textHeight + 1
+        }
+        scroll = max(0, min(scroll, maxScroll))
+        compose.scroll = scroll
+
+        let characters = Array(compose.text)
+        for index in scroll..<min(layoutText.lines.count, scroll + textHeight) {
+            let line = layoutText.lines[index]
+            let row = textTop + index - scroll
+            screen.put(StyledText(line.text), x: inner.x, y: row, maxWidth: inner.width)
+
+            if index == layoutText.cursorLine {
+                let cursorX = min(inner.x + layoutText.cursorColumn, inner.maxX - 1)
+                let cursorCharacter: String
+                if compose.cursor < characters.count, characters[compose.cursor] != "\n" {
+                    cursorCharacter = String(characters[compose.cursor])
+                } else {
+                    cursorCharacter = " "
+                }
+                screen.put(
+                    cursorCharacter,
+                    x: cursorX,
+                    y: row,
+                    style: Style(reverse: true),
+                    maxWidth: 1
+                )
+            }
+        }
+
+        if compose.isSubmitting {
+            var status = StyledText()
+            status.append("\(state.spinner) posting…", style: Theme.accent)
+            screen.put(status, x: inner.x, y: statusY)
+        } else if let error = compose.error {
+            screen.put(
+                StyledText(error, style: Theme.error).truncated(to: inner.width),
+                x: inner.x,
+                y: statusY
+            )
+        } else {
+            var status = StyledText()
+            status.append("\(compose.characterCount) chars", style: Theme.muted)
+            if compose.restoredDraft {
+                status.append(" · draft restored", style: Theme.warning)
+            }
+            screen.put(status, x: inner.x, y: statusY)
+        }
+
+        let submitKey = compose.kind.submitLabel
+        screen.put(
+            StyledText(
+                "ctrl-s \(submitKey) · esc save draft · ctrl-e external editor",
+                style: Theme.muted
+            ),
+            x: inner.x,
+            y: hintY,
+            maxWidth: inner.width
+        )
+
+        if compose.scroll != (state.overlay.flatMap { overlay -> Int? in
+            if case .compose(let current) = overlay { return current.scroll }
+            return nil
+        } ?? -1) {
+            state.overlay = .compose(compose)
         }
     }
 

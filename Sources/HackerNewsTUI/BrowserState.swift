@@ -88,6 +88,7 @@ public final class BrowserState {
         case login(LoginForm)
         case prompt(Prompt)
         case confirm(Confirm)
+        case compose(ComposeState)
     }
 
     public enum CommandAction: Sendable {
@@ -112,9 +113,7 @@ public final class BrowserState {
     }
 
     public enum EditorRequest: Sendable {
-        case comment(parent: ItemID)
-        case edit(id: ItemID, initialText: String)
-        case submitText(title: String)
+        case compose(initialText: String)
     }
 
     public struct HitRegion: Sendable {
@@ -168,6 +167,8 @@ public final class BrowserState {
 
     private var feedCache: [Source: FeedCache] = [:]
     var threadCache: [ItemID: TUIThread] = [:]
+    let draftStore: ComposeDraftStore
+    var drafts: [String: ComposeDraftRecord]
     private var feedTask: Task<Void, Never>?
     private var threadTask: Task<Void, Never>?
     private var replyTask: Task<Void, Never>?
@@ -180,7 +181,10 @@ public final class BrowserState {
     public static let spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 
     public init(client: HackerNewsClient, initialSource: Source = .feed(.frontPage)) {
+        let draftStore = ComposeDraftStore()
         self.client = client
+        self.draftStore = draftStore
+        self.drafts = (try? draftStore.load()) ?? [:]
         self.sidebarSections = SidebarSection.standard(pastDay: TUIDate.yesterday())
         self.sidebarSources = sidebarSections.flatMap(\.items)
         self.source = initialSource

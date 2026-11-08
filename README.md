@@ -36,7 +36,7 @@ Installs a universal macOS binary to `~/.local/bin`. Override the destination wi
 ### Direct download
 
 ```bash
-VERSION=0.2.0
+VERSION=0.2.1
 curl -LO "https://github.com/kaushalvivek/hn-cli/releases/download/v${VERSION}/hn-v${VERSION}-macos-universal.tar.gz"
 curl -LO "https://github.com/kaushalvivek/hn-cli/releases/download/v${VERSION}/checksums.txt"
 shasum -a 256 -c checksums.txt --ignore-missing
@@ -96,6 +96,7 @@ Run `hn --help` or `hn <command> --help` for the full surface.
 - Keyboard-first, with mouse support for clicking and scrolling
 - Lazy comment trees with instant collapse/expand
 - Search, command palette, help overlay, login modal, and toasts
+- Inline composer with context, drafts, retry-safe errors, and immediate in-thread replies
 - Vote, favorite, hide, flag, comment, edit, delete, and submit without leaving the terminal
 - Fast feed loading from HN's HTML, with structured Firebase/Algolia adapters underneath
 

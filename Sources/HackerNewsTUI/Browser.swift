@@ -114,6 +114,7 @@ public final class Browser {
             }
         }
 
+        state.saveActiveDraft()
         state.cancelBackgroundWork()
         bus.finish()
     }
@@ -128,6 +129,7 @@ public final class Browser {
 
     private func handle(key: KeyEvent) {
         if key == .ctrl("c") {
+            state.saveActiveDraft()
             state.shouldQuit = true
             return
         }
@@ -344,6 +346,46 @@ public final class Browser {
                 break
             }
 
+        case .compose:
+            switch key {
+            case .escape:
+                state.cancelCompose()
+            case .ctrl("s"):
+                state.submitCompose()
+            case .ctrl("e"):
+                state.openExternalEditorForCompose()
+            case .enter:
+                state.composeInsert("\n")
+            case .tab:
+                state.composeInsert("  ")
+            case .backspace:
+                state.composeBackspace()
+            case .delete:
+                state.composeDeleteForward()
+            case .left:
+                state.composeMoveLeft()
+            case .right:
+                state.composeMoveRight()
+            case .up:
+                state.composeMoveUp()
+            case .down:
+                state.composeMoveDown()
+            case .home, .ctrl("a"):
+                state.composeMoveHome()
+            case .end:
+                state.composeMoveEnd()
+            case .pageUp:
+                state.composePage(up: true)
+            case .pageDown:
+                state.composePage(up: false)
+            case .character(let character):
+                state.composeInsert(String(character))
+            case .paste(let text):
+                state.composeInsert(text)
+            default:
+                break
+            }
+
         case .none:
             break
         }
@@ -397,12 +439,8 @@ public final class Browser {
     private func runEditor(_ request: BrowserState.EditorRequest) async {
         let initial: String
         switch request {
-        case .comment:
-            initial = ""
-        case .edit(_, let text):
+        case .compose(let text):
             initial = text
-        case .submitText:
-            initial = ""
         }
 
         input?.stop()
@@ -428,13 +466,14 @@ public final class Browser {
 
         switch result {
         case .success(let text):
-            state.handleEditorResult(request, text: text)
+            state.handleExternalEditorResult(text: text)
         case .failure(let error):
             state.showToast(error.localizedDescription, style: .warning)
         }
 
         render()
     }
+
 }
 
 public enum TUI {

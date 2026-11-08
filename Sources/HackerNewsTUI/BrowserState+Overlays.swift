@@ -333,8 +333,8 @@ extension BrowserState {
         case .submitURL:
             let title = pendingSubmitTitle ?? ""
             if text.isEmpty {
-                pendingEditor = .submitText(title: title)
                 overlay = nil
+                requestSubmitText(title: title)
             } else {
                 guard let url = URL(string: text), url.scheme != nil else {
                     showToast("Enter a valid absolute URL", style: .warning)
@@ -451,16 +451,6 @@ extension BrowserState {
         }
     }
 
-    public func requestComment() {
-        guard let target = targetEntry else { return }
-        pendingEditor = .comment(parent: target.id)
-    }
-
-    public func requestEdit() {
-        guard let target = targetEntry else { return }
-        pendingEditor = .edit(id: target.id, initialText: target.text ?? "")
-    }
-
     public func requestSubmit() {
         beginSubmit()
     }
@@ -482,49 +472,6 @@ extension BrowserState {
     public func takeEditorRequest() -> EditorRequest? {
         defer { pendingEditor = nil }
         return pendingEditor
-    }
-
-    public func handleEditorResult(_ request: EditorRequest, text: String) {
-        switch request {
-        case .comment(let parent):
-            do {
-                let submission = try CommentSubmission(parentID: parent, text: text)
-                Task {
-                    do {
-                        let id = try await client.submitComment(submission)
-                        if let id {
-                            showToast("Comment posted: \(id)", style: .success)
-                        } else {
-                            showToast("Comment posted", style: .success)
-                        }
-                        if case .thread = detail {
-                            reloadThread()
-                        }
-                    } catch {
-                        handleActionError(error)
-                    }
-                }
-            } catch {
-                showToast(error.localizedDescription, style: .error)
-            }
-
-        case .edit(let id, _):
-            let body = text
-            Task {
-                do {
-                    try await client.editItem(id: id, text: body)
-                    showToast("Edited \(id)", style: .success)
-                    if case .thread = detail {
-                        reloadThread()
-                    }
-                } catch {
-                    handleActionError(error)
-                }
-            }
-
-        case .submitText(let title):
-            performSubmit(title: title, text: text)
-        }
     }
 
     public func performSubmit(title: String, url: URL? = nil, text: String? = nil) {
@@ -598,7 +545,7 @@ extension BrowserState {
         case .prompt(var prompt):
             prompt.text += text
             overlay = .prompt(prompt)
-        case .help, .confirm, .none:
+        case .help, .confirm, .compose, .none:
             break
         }
     }
@@ -623,7 +570,7 @@ extension BrowserState {
         case .prompt(var prompt):
             if !prompt.text.isEmpty { prompt.text.removeLast() }
             overlay = .prompt(prompt)
-        case .help, .confirm, .none:
+        case .help, .confirm, .compose, .none:
             break
         }
     }
@@ -638,12 +585,16 @@ extension BrowserState {
             submitLogin()
         case .prompt:
             submitPrompt()
-        case .help, .confirm, .none:
+        case .help, .confirm, .compose, .none:
             break
         }
     }
 
     public func closeOverlay() {
+        if case .compose = overlay {
+            cancelCompose()
+            return
+        }
         overlay = nil
     }
 
