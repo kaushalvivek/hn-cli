@@ -864,11 +864,15 @@ impl Cli {
                     println!("  {}", excerpt(&draft.text, 120));
                     if let Some(id) = draft_target(key) {
                         let command = if key.starts_with("comment:") {
-                            format!("hn comment {id} --use-draft")
+                            Some(format!("hn comment {id} --use-draft"))
+                        } else if key.starts_with("edit:") {
+                            Some(format!("hn edit {id} --use-draft"))
                         } else {
-                            format!("hn edit {id} --use-draft")
+                            None
                         };
-                        println!("  {}", out.dim(&command));
+                        if let Some(command) = command {
+                            println!("  {}", out.dim(&command));
+                        }
                     }
                     println!();
                 }

@@ -751,31 +751,29 @@ impl App {
             Event::User(result) => {
                 self.user = result.unwrap_or(None);
             }
-            Event::LoggedIn(result) => {
-                if let Some(Overlay::Login {
-                    field,
-                    error,
-                    submitting,
-                    ..
-                }) = self.overlay.as_mut()
-                {
-                    match result {
-                        Ok(session) => {
-                            self.user = Some(session.clone());
-                            self.overlay = None;
-                            self.toast(format!("Logged in as {}", session.user_id), SUCCESS);
-                            if self.source.requires_auth() {
-                                self.load_source(true);
-                            }
-                        }
-                        Err(login_error) => {
-                            *submitting = false;
-                            *error = Some(login_error.to_string());
-                            let _ = field;
-                        }
+            Event::LoggedIn(result) => match result {
+                Ok(session) => {
+                    self.user = Some(session.clone());
+                    if matches!(self.overlay, Some(Overlay::Login { .. })) {
+                        self.overlay = None;
+                    }
+                    self.toast(format!("Logged in as {}", session.user_id), SUCCESS);
+                    if self.source.requires_auth() {
+                        self.load_source(true);
                     }
                 }
-            }
+                Err(login_error) => {
+                    if let Some(Overlay::Login {
+                        error, submitting, ..
+                    }) = self.overlay.as_mut()
+                    {
+                        *submitting = false;
+                        *error = Some(login_error.to_string());
+                    } else {
+                        self.toast(login_error.to_string(), ERROR);
+                    }
+                }
+            },
             Event::CommentPosted {
                 parent_id,
                 text,
@@ -2626,7 +2624,7 @@ fn draw_compose(frame: &mut Frame, app: &mut App, compose: &ComposeState, rect: 
 
     let status_y = inner.height.saturating_sub(2) as usize;
     let text_height = status_y.saturating_sub(lines.len()).max(1);
-    let layout = compose_layout(&compose.text, inner.width as usize);
+    let layout = compose_layout(&compose.text, inner.width as usize, compose.cursor);
     let mut scroll = compose.scroll.min(layout.lines.len().saturating_sub(1));
     if layout.cursor_line < scroll {
         scroll = layout.cursor_line;
@@ -2849,7 +2847,7 @@ struct ComposeLayout {
     cursor_line: usize,
 }
 
-fn compose_layout(text: &str, width: usize) -> ComposeLayout {
+fn compose_layout(text: &str, width: usize, cursor: usize) -> ComposeLayout {
     let width = width.max(8);
     let chars: Vec<char> = text.chars().collect();
     let mut lines = Vec::new();
@@ -2875,7 +2873,7 @@ fn compose_layout(text: &str, width: usize) -> ComposeLayout {
         current_width += character_width;
     }
     lines.push((line_start, chars.len(), current));
-    let cursor = text.chars().count();
+    let cursor = cursor.min(chars.len());
     let mut cursor_line = lines.len().saturating_sub(1);
     for (index, (start, end, _)) in lines.iter().enumerate() {
         if cursor >= *start && cursor <= *end {
@@ -2884,4 +2882,26 @@ fn compose_layout(text: &str, width: usize) -> ComposeLayout {
         }
     }
     ComposeLayout { lines, cursor_line }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compose_layout_tracks_the_cursor_line() {
+        let text = "first line\nsecond line\nthird line";
+        assert_eq!(compose_layout(text, 80, 2).cursor_line, 0);
+        assert_eq!(
+            compose_layout(text, 80, text.chars().count()).cursor_line,
+            2
+        );
+    }
+
+    #[test]
+    fn compose_layout_wraps_long_lines() {
+        let layout = compose_layout("abcdefghij", 4, 0);
+        assert!(layout.lines.len() > 1);
+        assert_eq!(layout.cursor_line, 0);
+    }
 }
