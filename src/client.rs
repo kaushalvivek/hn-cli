@@ -83,10 +83,10 @@ impl HackerNews {
         let entries = self.site.leaders().await?;
         let mut result = Vec::with_capacity(entries.len());
         for mut entry in entries {
-            if entry.karma == 0 {
-                if let Ok(Some(user)) = self.firebase.user(&entry.user_id).await {
-                    entry.karma = user.karma;
-                }
+            if entry.karma == 0
+                && let Ok(Some(user)) = self.firebase.user(&entry.user_id).await
+            {
+                entry.karma = user.karma;
             }
             result.push(entry);
         }

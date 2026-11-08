@@ -15,10 +15,10 @@ use crate::http::{HttpRequest, HttpResponse, HttpTransport, env_url, form_encode
 const MAX_HTML_PAGES: usize = 25;
 
 pub fn config_dir() -> PathBuf {
-    if let Ok(dir) = std::env::var("HN_CONFIG_DIR") {
-        if !dir.is_empty() {
-            return PathBuf::from(dir);
-        }
+    if let Ok(dir) = std::env::var("HN_CONFIG_DIR")
+        && !dir.is_empty()
+    {
+        return PathBuf::from(dir);
     }
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
@@ -420,10 +420,8 @@ impl SiteClient {
                     .unwrap_or_else(|| self.base.to_string()),
             ),
         ];
-        if send_cookies {
-            if let Some(session) = self.session.read().await.as_ref() {
-                headers.push(("Cookie".into(), format!("user={}", session.cookie)));
-            }
+        if send_cookies && let Some(session) = self.session.read().await.as_ref() {
+            headers.push(("Cookie".into(), format!("user={}", session.cookie)));
         }
         let body = fields.map(|fields| form_encode(fields).into_bytes());
         if fields.is_some() {
@@ -455,11 +453,11 @@ impl SiteClient {
         if let Some(token) = self.auth_token.read().await.clone() {
             return Some(token);
         }
-        if let Ok(response) = self.request("news", "GET", None, true, None, true).await {
-            if let Some(token) = find_auth_token(&response.text()) {
-                *self.auth_token.write().await = Some(token.clone());
-                return Some(token);
-            }
+        if let Ok(response) = self.request("news", "GET", None, true, None, true).await
+            && let Some(token) = find_auth_token(&response.text())
+        {
+            *self.auth_token.write().await = Some(token.clone());
+            return Some(token);
         }
         self.session
             .read()

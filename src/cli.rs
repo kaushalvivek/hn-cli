@@ -976,12 +976,11 @@ fn print_site_entry(out: &Out, entry: &SiteFeedEntry, rank: usize) {
         _ => {
             println!("{}. {}", out.dim(&rank.to_string()), out.bold(title));
             let mut parts = Vec::new();
-            if let Some(url) = &entry.url {
-                if let Ok(url) = url::Url::parse(url) {
-                    if let Some(host) = url.host_str() {
-                        parts.push(host.trim_start_matches("www.").to_string());
-                    }
-                }
+            if let Some(url) = &entry.url
+                && let Ok(url) = url::Url::parse(url)
+                && let Some(host) = url.host_str()
+            {
+                parts.push(host.trim_start_matches("www.").to_string());
             }
             if let Some(score) = entry.score {
                 parts.push(format!("{score} points"));
@@ -1051,10 +1050,10 @@ fn print_item_line(out: &Out, item: &Item, rank: usize) {
                 )
             );
             let mut parts = Vec::new();
-            if let Some(url) = item.url().and_then(|u| url::Url::parse(u).ok()) {
-                if let Some(host) = url.host_str() {
-                    parts.push(host.trim_start_matches("www.").to_string());
-                }
+            if let Some(url) = item.url().and_then(|u| url::Url::parse(u).ok())
+                && let Some(host) = url.host_str()
+            {
+                parts.push(host.trim_start_matches("www.").to_string());
             }
             if let Some(score) = item.score() {
                 parts.push(format!("{score} points"));
@@ -1236,10 +1235,10 @@ fn print_search(out: &Out, results: &SearchResults) {
                     )
                 );
                 let mut parts = Vec::new();
-                if let Some(url) = hit.url.as_deref().and_then(|u| url::Url::parse(u).ok()) {
-                    if let Some(host) = url.host_str() {
-                        parts.push(host.trim_start_matches("www.").to_string());
-                    }
+                if let Some(url) = hit.url.as_deref().and_then(|u| url::Url::parse(u).ok())
+                    && let Some(host) = url.host_str()
+                {
+                    parts.push(host.trim_start_matches("www.").to_string());
                 }
                 if let Some(score) = hit.score {
                     parts.push(format!("{score} points"));

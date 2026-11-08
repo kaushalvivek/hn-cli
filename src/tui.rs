@@ -782,10 +782,10 @@ impl App {
                 result,
                 item,
             } => {
-                if let Some(Overlay::Compose(compose)) = &self.overlay {
-                    if compose.kind != (ComposeKind::Comment { parent_id }) {
-                        return;
-                    }
+                if let Some(Overlay::Compose(compose)) = &self.overlay
+                    && compose.kind != (ComposeKind::Comment { parent_id })
+                {
+                    return;
                 }
                 match result {
                     Ok(id) => {
@@ -798,12 +798,12 @@ impl App {
                             SUCCESS,
                         );
                         if let (Some(item), Some(id)) = (item, id) {
-                            if let Detail::Thread(thread) = &mut self.detail {
-                                if thread.insert(item, parent_id) {
-                                    let _ = text;
-                                    self.focus = Focus::Detail;
-                                    return;
-                                }
+                            if let Detail::Thread(thread) = &mut self.detail
+                                && thread.insert(item, parent_id)
+                            {
+                                let _ = text;
+                                self.focus = Focus::Detail;
+                                return;
                             }
                             let _ = id;
                         }
@@ -976,12 +976,12 @@ impl App {
                 }
             }
             Focus::Detail => {
-                if let Detail::Thread(thread) = &mut self.detail {
-                    if !thread.visible.is_empty() {
-                        thread.selected = (thread.selected as isize + delta)
-                            .clamp(0, thread.visible.len() as isize - 1)
-                            as usize;
-                    }
+                if let Detail::Thread(thread) = &mut self.detail
+                    && !thread.visible.is_empty()
+                {
+                    thread.selected = (thread.selected as isize + delta)
+                        .clamp(0, thread.visible.len() as isize - 1)
+                        as usize;
                 }
             }
         }
@@ -1074,10 +1074,10 @@ impl App {
 
     fn tick(&mut self) {
         self.spinner = (self.spinner + 1) % SPINNER.len();
-        if let Some(toast) = &self.toast {
-            if toast.expires <= std::time::Instant::now() {
-                self.toast = None;
-            }
+        if let Some(toast) = &self.toast
+            && toast.expires <= std::time::Instant::now()
+        {
+            self.toast = None;
         }
     }
 
@@ -1172,12 +1172,11 @@ impl App {
 
     fn compose_context(&self, target: &TuiEntry, label: &str) -> ComposeContext {
         let mut story_title = target.story_title.clone();
-        if story_title.is_none() {
-            if let Detail::Thread(thread) = &self.detail {
-                if thread.thread.root.kind() == Some(ItemKind::Story) {
-                    story_title = Some(TuiEntry::from_item(&thread.thread.root).display_title());
-                }
-            }
+        if story_title.is_none()
+            && let Detail::Thread(thread) = &self.detail
+            && thread.thread.root.kind() == Some(ItemKind::Story)
+        {
+            story_title = Some(TuiEntry::from_item(&thread.thread.root).display_title());
         }
         if story_title.is_none() && target.kind == ItemKind::Story {
             story_title = Some(target.display_title());
@@ -1219,10 +1218,10 @@ impl App {
             return None;
         }
         if self.focus == Focus::Detail {
-            if let Detail::Thread(thread) = &self.detail {
-                if let Some(item) = thread.selected_item() {
-                    return Some(TuiEntry::from_item(item));
-                }
+            if let Detail::Thread(thread) = &self.detail
+                && let Some(item) = thread.selected_item()
+            {
+                return Some(TuiEntry::from_item(item));
             }
             if let Detail::Preview(entry) = &self.detail {
                 return Some(entry.clone());
@@ -1336,17 +1335,17 @@ impl App {
     }
 
     fn save_active_draft(&mut self) {
-        if let Some(Overlay::Compose(compose)) = &self.overlay {
-            if !compose.trimmed().is_empty() {
-                self.drafts.insert(
-                    compose.kind.key(),
-                    DraftRecord {
-                        text: compose.text.clone(),
-                        saved_at: Utc::now(),
-                    },
-                );
-                save_drafts(&self.drafts).ok();
-            }
+        if let Some(Overlay::Compose(compose)) = &self.overlay
+            && !compose.trimmed().is_empty()
+        {
+            self.drafts.insert(
+                compose.kind.key(),
+                DraftRecord {
+                    text: compose.text.clone(),
+                    saved_at: Utc::now(),
+                },
+            );
+            save_drafts(&self.drafts).ok();
         }
     }
 
@@ -1732,10 +1731,10 @@ impl App {
             },
             TermEvent::Resize(_, _) => {}
             TermEvent::Paste(text) => {
-                if let Some(Overlay::Compose(_)) = &mut self.overlay {
-                    if let Some(Overlay::Compose(compose)) = &mut self.overlay {
-                        compose.insert(&text);
-                    }
+                if let Some(Overlay::Compose(_)) = &mut self.overlay
+                    && let Some(Overlay::Compose(compose)) = &mut self.overlay
+                {
+                    compose.insert(&text);
                 }
             }
             _ => {}
@@ -1806,10 +1805,10 @@ impl App {
             KeyCode::Char('[') => self.cycle_source(-1),
             KeyCode::Char(']') => self.cycle_source(1),
             KeyCode::Char(character) if character.is_ascii_digit() => {
-                if let Some(index) = character.to_digit(10) {
-                    if index > 0 {
-                        self.select_source(index as usize - 1);
-                    }
+                if let Some(index) = character.to_digit(10)
+                    && index > 0
+                {
+                    self.select_source(index as usize - 1);
                 }
             }
             _ => {}

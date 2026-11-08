@@ -160,12 +160,12 @@ impl HttpTransport for ReqwestTransport {
         // Preserve every Set-Cookie value, including when the same header is
         // repeated across redirects.
         for value in response.headers().get_all(SET_COOKIE) {
-            if let Ok(value) = value.to_str() {
-                if !response_headers.iter().any(|(name, existing)| {
+            if let Ok(value) = value.to_str()
+                && !response_headers.iter().any(|(name, existing)| {
                     name.eq_ignore_ascii_case("set-cookie") && existing == value
-                }) {
-                    response_headers.push(("set-cookie".into(), value.to_string()));
-                }
+                })
+            {
+                response_headers.push(("set-cookie".into(), value.to_string()));
             }
         }
         let body = response
