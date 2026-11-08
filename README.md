@@ -23,6 +23,8 @@
 brew install kaushalvivek/tap/hn
 ```
 
+> Homebrew 7 may ask you to trust a third-party tap on first use. If prompted, run `brew trust kaushalvivek/tap`.
+
 ### Install script
 
 ```bash
@@ -33,7 +35,17 @@ Installs a universal macOS binary to `~/.local/bin`. Override the destination wi
 
 ### Direct download
 
-Download the latest universal binary from [Releases](https://github.com/kaushalvivek/hn-cli/releases/latest), verify it against `checksums.txt`, and place `hn` on your `PATH`.
+```bash
+VERSION=0.2.0
+curl -LO "https://github.com/kaushalvivek/hn-cli/releases/download/v${VERSION}/hn-v${VERSION}-macos-universal.tar.gz"
+curl -LO "https://github.com/kaushalvivek/hn-cli/releases/download/v${VERSION}/checksums.txt"
+shasum -a 256 -c checksums.txt --ignore-missing
+tar -xzf "hn-v${VERSION}-macos-universal.tar.gz"
+mkdir -p ~/.local/bin
+install -m 755 hn ~/.local/bin/hn
+```
+
+The release is a universal binary for Apple Silicon and Intel Macs.
 
 ### Mint
 
@@ -50,6 +62,18 @@ make install
 ```
 
 Requires macOS 14+ and Swift 6 / Xcode 16+.
+
+### Updating
+
+```bash
+brew upgrade hn
+```
+
+### Uninstalling
+
+```bash
+brew uninstall hn
+```
 
 ## Quick start
 
