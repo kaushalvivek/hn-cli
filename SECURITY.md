@@ -20,6 +20,7 @@ For non-security questions, use [vivekkaushal.com/talk](https://vivekkaushal.com
 - The session file is written to `~/.config/hn/session.json` with mode `0600`.
 - Passwords are never written to disk.
 - The cookie is a credential. Do not share it, commit it, or paste it into issues.
+- Drafts at `~/.config/hn/drafts.json` may contain private text. Treat them as user data.
 - `hn logout` removes the local session and attempts to invalidate it on Hacker News.
 
 ## Write actions

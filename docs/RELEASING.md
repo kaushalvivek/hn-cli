@@ -6,13 +6,22 @@ Releases are built by GitHub Actions from a version tag.
 
 Update:
 
-- `Sources/hn/Version.swift`
+- `Cargo.toml` (`version`)
 - `CHANGELOG.md`
+
+Run the full gate locally:
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --all-targets -- -D warnings
+cargo test --all-targets
+cargo build --release
+```
 
 Commit the change:
 
 ```bash
-git add Sources/hn/Version.swift CHANGELOG.md
+git add Cargo.toml Cargo.lock CHANGELOG.md
 git commit -m "Release v0.3.0"
 git push origin main
 ```
@@ -24,13 +33,15 @@ git tag -a v0.3.0 -m "v0.3.0"
 git push origin v0.3.0
 ```
 
-The `Release` workflow will:
+The `Release` workflow builds on native runners:
 
-1. Run the test suite.
-2. Build a universal `arm64`/`x86_64` binary.
-3. Ad-hoc sign it.
-4. Package `hn-v0.3.0-macos-universal.tar.gz` and a stable `hn-macos-universal.tar.gz` alias.
-5. Publish a GitHub release with `checksums.txt`.
+1. macOS universal (`arm64` + `x86_64`, ad-hoc signed).
+2. Linux `x86_64`.
+3. Linux `aarch64`.
+
+Each platform runs the test suite and produces both a versioned archive
+(`hn-v0.3.0-<platform>.tar.gz`) and a stable alias (`hn-<platform>.tar.gz`).
+The release job publishes every archive plus `checksums.txt`.
 
 Wait for the workflow:
 
@@ -41,7 +52,7 @@ gh run watch
 
 ## 3. Update the Homebrew tap
 
-Download the checksum:
+Download the checksums:
 
 ```bash
 gh release download v0.3.0 -R kaushalvivek/hn-cli -p checksums.txt -D /tmp/hn-release --clobber
@@ -49,11 +60,12 @@ cat /tmp/hn-release/checksums.txt
 ```
 
 Update `Formula/hn.rb` in
-[`kaushalvivek/homebrew-tap`](https://github.com/kaushalvivek/homebrew-tap):
+[`kaushalvivek/homebrew-tap`](https://github.com/kaushalvivek/homebrew-tap)
+with:
 
-- `url` → the versioned release asset
-- `sha256` → the matching checksum
-- `version`, if present
+- `version "0.3.0"`
+- `on_macos` / `on_linux` and `on_arm` / `on_intel` URLs
+- the matching `sha256` for each of the three assets
 - the `test` version string
 
 Commit and push:
@@ -68,10 +80,17 @@ git -C ../homebrew-tap push
 
 ```bash
 brew update
-brew reinstall kaushalvivek/tap/hn
+brew upgrade hn
 brew test kaushalvivek/tap/hn
 hn --version
 
-HN_INSTALL_DIR=/tmp/hn-install sh install.sh
+HN_VERSION=0.3.0 HN_INSTALL_DIR=/tmp/hn-install sh install.sh
 /tmp/hn-install/hn --version
+```
+
+## 5. Local install
+
+```bash
+brew upgrade hn
+hn --version
 ```

@@ -1,9 +1,5 @@
-.build/
-.swiftpm/
+/target/
 .DS_Store
-DerivedData/
-*.xcuserstate
-xcuserdata/
 dist/
 *.tar.gz
 *.dSYM/

@@ -9,50 +9,173 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    name: Build and publish release
+  macos:
+    name: macOS universal
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
       - name: Check out
         uses: actions/checkout@v7
 
-      - name: Show Swift version
-        run: swift --version
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
 
-      - name: Run tests
-        run: swift test
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
 
-      - name: Build universal binary
-        run: swift build -c release --arch arm64 --arch x86_64
+      - name: Test
+        run: cargo test --all-targets
 
-      - name: Package release assets
+      - name: Build Apple Silicon
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Build Intel
+        run: cargo build --release --target x86_64-apple-darwin
+
+      - name: Package
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
           mkdir -p dist
-          cp .build/apple/Products/Release/hn dist/hn
-          cp LICENSE dist/LICENSE
-          cp README.md dist/README.md
+          lipo -create \
+            "target/aarch64-apple-darwin/release/hn" \
+            "target/x86_64-apple-darwin/release/hn" \
+            -output dist/hn
           chmod 755 dist/hn
-
           codesign --force --sign - dist/hn
           codesign --verify --verbose dist/hn
+          cp LICENSE dist/LICENSE
+          cp README.md dist/README.md
 
           VERSIONED="hn-${TAG}-macos-universal.tar.gz"
           tar -czf "$VERSIONED" -C dist hn LICENSE README.md
           cp "$VERSIONED" hn-macos-universal.tar.gz
 
-          shasum -a 256 "$VERSIONED" hn-macos-universal.tar.gz > checksums.txt
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: |
+            hn-*-macos-universal.tar.gz
+            hn-macos-universal.tar.gz
+          if-no-files-found: error
+
+  linux-x86_64:
+    name: Linux x86_64
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --all-targets
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          mkdir -p dist
+          cp target/release/hn dist/hn
+          chmod 755 dist/hn
+          cp LICENSE dist/LICENSE
+          cp README.md dist/README.md
+
+          VERSIONED="hn-${TAG}-linux-x86_64.tar.gz"
+          tar -czf "$VERSIONED" -C dist hn LICENSE README.md
+          cp "$VERSIONED" hn-linux-x86_64.tar.gz
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64
+          path: |
+            hn-*-linux-x86_64.tar.gz
+            hn-linux-x86_64.tar.gz
+          if-no-files-found: error
+
+  linux-aarch64:
+    name: Linux aarch64
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --all-targets
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          mkdir -p dist
+          cp target/release/hn dist/hn
+          chmod 755 dist/hn
+          cp LICENSE dist/LICENSE
+          cp README.md dist/README.md
+
+          VERSIONED="hn-${TAG}-linux-aarch64.tar.gz"
+          tar -czf "$VERSIONED" -C dist hn LICENSE README.md
+          cp "$VERSIONED" hn-linux-aarch64.tar.gz
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-aarch64
+          path: |
+            hn-*-linux-aarch64.tar.gz
+            hn-linux-aarch64.tar.gz
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: [macos, linux-x86_64, linux-aarch64]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum *.tar.gz > checksums.txt
           cat checksums.txt
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v3
         with:
           files: |
-            hn-*-macos-universal.tar.gz
-            hn-macos-universal.tar.gz
-            checksums.txt
+            dist/*.tar.gz
+            dist/checksums.txt
           generate_release_notes: true
           fail_on_unmatched_files: true

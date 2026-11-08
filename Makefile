@@ -1,17 +1,24 @@
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
+CARGO ?= cargo
 
-.PHONY: build release test install
+.PHONY: build release test fmt lint install
 
 build:
-	swift build
+	$(CARGO) build
 
 release:
-	swift build -c release
+	$(CARGO) build --release
 
 test:
-	swift test
+	$(CARGO) test
+
+fmt:
+	$(CARGO) fmt
+
+lint:
+	$(CARGO) clippy --all-targets -- -D warnings
 
 install: release
 	install -d "$(BINDIR)"
-	install -m 755 .build/release/hn "$(BINDIR)/hn"
+	install -m 755 target/release/hn "$(BINDIR)/hn"

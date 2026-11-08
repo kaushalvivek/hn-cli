@@ -4,6 +4,33 @@ All notable changes to this project are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-11-08
+
+### Changed
+
+- Rewrote `hn` in Rust. The Swift implementation remains available at `v0.2.1`.
+- macOS and Linux are both first-class: Apple Silicon, Intel, Linux x86_64, and Linux aarch64 release assets.
+- Replaced the Swift Package build with Cargo, `rustfmt`, `clippy`, and native CI on all three platforms.
+- Homebrew now installs the Rust binary on macOS and Linux from the consolidated `kaushalvivek/tap`.
+
+### Added
+
+- `hn capabilities`: a machine-readable command map, JSON error contract, environment variables, and auth requirements for agents.
+- `--json` on every command, plus `HN_JSON=1`.
+- `AGENTS.md` and `llms.txt` guides for coding agents.
+- `hn drafts` to list drafts, `--clear` to remove them, and `--use-draft` to resume comment/edit drafts.
+- Context-aware CLI commenting: prints the parent author and excerpt before opening `$VISUAL`/`$EDITOR`, and saves a draft when posting fails.
+- Shared draft storage between the CLI and TUI.
+- Cross-platform release workflow producing macOS universal, Linux x86_64, and Linux aarch64 archives with checksums.
+- Linux support in `install.sh` with platform detection and checksum verification.
+- Unit tests for the domain model, HN HTML parsing, drafts, CLI pagination, and capabilities.
+
+### Fixed
+
+- JSON errors now use a consistent `{"ok":false,"error":{...}}` shape on stderr.
+- Feed page labels respect `--limit` instead of assuming 30 items.
+- TUI `q` and `Ctrl-C` always preserve drafts and restore the terminal.
+
 ## [0.2.1] - 2026-11-08
 
 ### Fixed
@@ -34,5 +61,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Session storage with `0600` permissions and no password persistence.
 - Homebrew tap, install script, universal macOS release assets, and CI.
 
+[0.3.0]: https://github.com/kaushalvivek/hn-cli/releases/tag/v0.3.0
 [0.2.1]: https://github.com/kaushalvivek/hn-cli/releases/tag/v0.2.1
 [0.2.0]: https://github.com/kaushalvivek/hn-cli/releases/tag/v0.2.0

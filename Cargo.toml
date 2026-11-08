@@ -1,0 +1,46 @@
+[package]
+name = "hn-cli"
+version = "0.3.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Hacker News in your terminal — interactive TUI, scriptable CLI, and agent-friendly JSON"
+license = "MIT"
+repository = "https://github.com/kaushalvivek/hn-cli"
+homepage = "https://github.com/kaushalvivek/hn-cli"
+readme = "README.md"
+keywords = ["hacker-news", "cli", "tui", "terminal", "agents"]
+categories = ["command-line-utilities"]
+
+[lib]
+name = "hn_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "hn"
+path = "src/main.rs"
+
+[dependencies]
+async-trait = "0.1.92"
+chrono = { version = "0.4.45", features = ["serde"] }
+clap = { version = "4.6.7", features = ["derive", "env", "wrap_help"] }
+crossterm = { version = "0.29", features = ["event-stream"] }
+dirs = "7.0.0"
+ego-tree = "0.11.1"
+futures = "0.3.34"
+percent-encoding = "2.3.2"
+ratatui = "0.30.2"
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "gzip", "charset"] }
+rpassword = "7.5.4"
+scraper = "0.29.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+tempfile = "3.27.0"
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "time", "sync", "process", "fs", "io-util", "net"] }
+unicode-width = "0.2.3"
+url = "2.5.8"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

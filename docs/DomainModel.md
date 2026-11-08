@@ -1,6 +1,6 @@
 # Hacker News domain model
 
-This document defines the product we are modeling: **news.ycombinator.com**. It is not a model of the Firebase API, Algolia, or any other transport. Those are read/write projections of the product and sit behind ports in `HackerNewsCore`.
+This document defines the product we are modeling: **news.ycombinator.com**. It is not a model of the Firebase API, Algolia, or any other transport. Those are read/write projections of the product and sit behind the adapters in the `hn_cli` crate.
 
 ## 1. Sources of truth
 
@@ -31,17 +31,17 @@ The domain model does not care which source is used. A single operation may be s
 
 | Type | Meaning | Invariants |
 | --- | --- | --- |
-| `ItemID` | Unique integer item identifier | Positive |
-| `UserID` | Case-sensitive username | Non-empty; never case-folded |
+| `ItemId` | Unique integer item identifier | Positive |
+| `UserId` | Case-sensitive username | Non-empty; never case-folded |
 | `CalendarDay` | A day used by the past-front-page archive | Valid Gregorian date |
-| `HTMLText` | Raw HTML from an HN text field | Kept verbatim |
+| `HtmlText` | Raw HTML from an HN text field | Kept verbatim |
 | `ItemFlags` | `dead` / `deleted` state | Option set |
 | `PageRequest` | Offset/limit pagination | `offset >= 0`, `1...1000` limit |
-| `ThreadLoadPolicy` | Bounds for recursive thread loading | Depth, node and concurrency limits |
+| `Thread` | A root item plus its bounded, recursive replies | Tree order preserved |
 | `SearchQuery` | Search terms, filters, sort and pagination | Semantic query; transport maps to Algolia |
 | `VoteDirection` | `up`, `down`, `unvote` | — |
 
-Time is an absolute instant (`Date`). The API's Unix seconds are converted at the transport boundary. `CalendarDay` is intentionally timezone-free because the archive URL is `front?day=YYYY-MM-DD`.
+Time is an absolute instant (`DateTime<Utc>`). The API's Unix seconds are converted at the transport boundary. `CalendarDay` is intentionally timezone-free because the archive URL is `front?day=YYYY-MM-DD`.
 
 ## 4. Entities and aggregates
 
@@ -51,9 +51,9 @@ Time is an absolute instant (`Date`). The API's Unix seconds are converted at th
 
 ```
 Item
-  id: ItemID
-  author: UserID?
-  createdAt: Date
+  id: ItemId
+  author: Option<UserId>
+  created_at: DateTime<Utc>
   flags: ItemFlags
   content:
     .story(Story)
@@ -71,20 +71,20 @@ Item
 - `Poll` carries title, optional text, score, comment count, comment IDs, option IDs.
 - `PollOption` carries poll ID, text, score.
 - `DeletedItem` preserves parent ID and child IDs so a deleted comment does not break the thread structure.
-- `Item.childIDs` is the ordered list used to traverse a thread.
+- `Item.child_ids()` is the ordered list used to traverse a thread.
 
 ### User
 
 ```
 User
-  id: UserID
-  createdAt: Date
-  karma: Int
-  about: HTMLText?
-  submittedItemIDs: [ItemID]
+  id: UserId
+  created_at: DateTime<Utc>
+  karma: i64
+  about: Option<HtmlText>
+  submitted_item_ids: Vec<ItemId>
 ```
 
-`submittedItemIDs` is ordered newest-first as returned by HN. Only users with public activity are retrievable.
+`submitted_item_ids` is ordered newest-first as returned by HN. Only users with public activity are retrievable.
 
 ### Thread
 
@@ -93,26 +93,26 @@ A read model, not an aggregate that owns the comments:
 ```
 Thread
   root: Item
-  replies: [ThreadNode]     // top-level comments, ordered
-  loadedItemCount: Int
-  missingItemCount: Int
-  isComplete: Bool
+  replies: Vec<ThreadNode>     // top-level comments, ordered
+  loaded_item_count: usize
+  missing_item_count: usize
+  is_complete: bool
 
 ThreadNode
   item: Item
-  replies: [ThreadNode]
+  replies: Vec<ThreadNode>
 ```
 
-Threads are loaded lazily from child IDs. HN does not return a whole thread in one request, so `LoadThread` performs a bounded breadth-first traversal. `isComplete` is false if the policy truncated the tree or an item could not be fetched.
+Threads are loaded lazily from child IDs. HN does not return a whole thread in one request, so `LoadThread` performs a bounded breadth-first traversal. `is_complete` is false if the policy truncated the tree or an item could not be fetched.
 
 ### Feed page / item page
 
 ```
 ItemPage
-  items: [Item]
-  offset: Int
-  hasMore: Bool
-  totalCount: Int?
+  items: Vec<Item>
+  offset: u64
+  has_more: bool
+  total_count: Option<u64>
 ```
 
 Order is always the source order (rank, recency, or relevance), never the order in which requests completed.
@@ -123,24 +123,24 @@ Search hits are a projection, not full items:
 
 ```
 SearchHit
-  id, kind, author, createdAt
+  id, kind, author, created_at
   title?, url?, text?
-  score?, commentCount?
-  storyID?, parentID?
+  score?, comment_count?
+  story_id?, parent_id?
 
 SearchResults
-  hits, totalHits, page, pageCount, query
+  hits, total_hits, page, page_count, query
 ```
 
 ### Session and account
 
 ```
-UserSession(userID)
-StorySubmission(title, url?, text?)
-CommentSubmission(parentID, text)
+UserSession { user_id }
+StorySubmission { title, url, text }
+CommentSubmission { parent_id, text }
 ```
 
-Credentials and session tokens are transport concerns and never live in the domain. `AccountProvider` exposes the intent (`logIn`, `signUp`, `vote`, `submitStory`, `comment`, `edit`, `delete`, `favorite`, `hide`, `flag`, `unflag`, `logOut`).
+Credentials and session tokens are transport concerns and never live in the domain. `SiteClient` exposes the intent (`login`, `signup`, `vote`, `submit_story`, `submit_comment`, `edit_item`, `delete_item`, `set_favorite`, `set_hidden`, `flag`, `unflag`, `logout`).
 
 ## 5. Operations
 
@@ -185,7 +185,7 @@ Credentials and session tokens are transport concerns and never live in the doma
 | Hide / unhide | Hide/unhide from the signed-in user's view |
 | Flag / unflag | Report an item, or remove a report |
 
-HN has **no official write API**. These actions use the site's HTML forms, session cookies, and per-page `auth`/`fnid`/`hmac` tokens. They are implemented in `HackerNewsAdapters` and exposed by the CLI; because they depend on HN's markup, they are the most fragile part of the client.
+HN has **no official write API**. These actions use the site's HTML forms, session cookies, and per-page `auth`/`fnid`/`hmac` tokens. They are implemented in `src/site.rs` and exposed by the CLI; because they depend on HN's markup, they are the most fragile part of the client.
 
 ## 6. Invariants and edge cases
 
@@ -213,13 +213,15 @@ HN has **no official write API**. These actions use the site's HTML forms, sessi
 ## 8. Package boundaries
 
 ```
-Domain      pure Swift values and read models; no networking
-Ports       narrow capabilities: ItemProvider, FeedProvider, UserProvider,
-            UserActivityProvider, SearchProvider, UpdateProvider,
-            LeaderboardProvider, AccountProvider
-Operations  orchestration: FetchFeedPage, LoadThread, FetchUserSubmissions, ...
-Adapters    Firebase, Algolia, HN HTML/session (HackerNewsAdapters)
-Interfaces  CLI (Sources/hn); iOS app (future)
+domain.rs   pure Rust values and read models; no networking
+http.rs     HttpTransport abstraction (reqwest implementation)
+firebase.rs Firebase items, users, feeds, updates
+algolia.rs  search and item-tree fast path
+site.rs     HN HTML, session, login, and write actions
+client.rs   orchestration: feeds, threads, context, user activity, writes
+cli.rs      clap command surface and JSON output
+tui.rs      ratatui interactive browser
+drafts.rs   shared on-disk drafts
 ```
 
-The domain depends on nothing but Foundation. The CLI and iOS app depend on the domain. Adapters implement ports and translate transport errors into `HackerNewsError`.
+The domain depends only on `chrono` and `serde`. Adapters translate transport errors into `HnError`.

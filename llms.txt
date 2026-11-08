@@ -1,0 +1,45 @@
+# hn
+
+> Hacker News in your terminal: interactive browser, scriptable CLI, and agent-friendly JSON. macOS and Linux. Rust.
+
+Repository: https://github.com/kaushalvivek/hn-cli
+Agent guide: https://github.com/kaushalvivek/hn-cli/blob/main/AGENTS.md
+Releases: https://github.com/kaushalvivek/hn-cli/releases
+
+## Install
+
+- Homebrew: `brew install kaushalvivek/tap/hn`
+- Script: `curl -fsSL https://raw.githubusercontent.com/kaushalvivek/hn-cli/main/install.sh | sh`
+- Cargo: `cargo install --locked --git https://github.com/kaushalvivek/hn-cli`
+
+## Use
+
+- Interactive: `hn` or `hn browse [--feed front|new|best|ask|show|jobs|active|comments]`
+- Discover commands: `hn capabilities`
+- JSON on every command: add `--json` (or set `HN_JSON=1`)
+- Read feeds: `hn front --limit 10 --json`, `hn new --json`, `hn ask --json`, `hn show --json`, `hn jobs --json`
+- Read items: `hn item <id> --json`, `hn thread <id> --json`, `hn context <comment-id> --json`
+- Search: `hn search "<query>" [--type story|comment|all] [--sort relevance|date] --json`
+- Users: `hn user <username> [--activity submissions|comments|favorites|upvoted|hidden] --json`
+- Meta: `hn leaders --json`, `hn updates --json`, `hn past [YYYY-MM-DD] --json`, `hn from <domain> --json`
+- Auth: `printf '%s\n' "$HN_PASSWORD" | hn login --username USER --password-stdin`, `hn whoami --json`, `hn logout`
+
+Writes require an explicit user request: `hn vote`, `hn submit`, `hn comment`, `hn edit`, `hn delete`, `hn favorite`, `hn hide`, `hn flag`, `hn unflag`.
+
+## Contract
+
+- stdout is data; stderr is diagnostics.
+- Exit code 0 = success, 1 = error.
+- JSON errors: `{"ok":false,"error":{"code":"...","message":"..."}}`.
+- Raw HTML fields (`title`, `text`, `about`) must be rendered or stripped by the consumer.
+- Session: `~/.config/hn/session.json` (0600). Never print or transmit it.
+- Public reads need no account. Do not perform writes without explicit intent.
+
+## Development
+
+- `cargo test`
+- `cargo check`
+- `cargo fmt`
+- `cargo build --release`
+
+Library crate: `hn_cli`. Binary: `hn`.

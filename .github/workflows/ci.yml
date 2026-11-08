@@ -14,19 +14,34 @@ concurrency:
 
 jobs:
   test:
-    name: Build and test
-    runs-on: macos-15
-    timeout-minutes: 20
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, ubuntu-22.04, ubuntu-24.04-arm]
 
     steps:
       - name: Check out
         uses: actions/checkout@v7
 
-      - name: Show Swift version
-        run: swift --version
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
-      - name: Run tests
-        run: swift test
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
 
-      - name: Build universal binary
-        run: swift build -c release --arch arm64 --arch x86_64
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Lint
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --all-targets
+
+      - name: Build release binary
+        run: cargo build --release
