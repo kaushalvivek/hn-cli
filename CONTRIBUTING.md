@@ -46,6 +46,7 @@ The project is a single Rust crate with a small domain core and narrow adapters:
 | `src/drafts.rs` | Shared on-disk drafts. |
 | `packaging/nfpm.yaml` | Native Linux package layout (deb, rpm, Arch, Alpine). |
 | `docs/hn.1` | Manual page installed by native packages. |
+| `docs/index.html` | GitHub Pages landing page. |
 
 The domain model is documented in [`docs/DomainModel.md`](docs/DomainModel.md). Keep transport concerns out of `src/domain.rs`; adapters translate between the outside world and the domain.
 
