@@ -4,8 +4,8 @@ platform: linux
 version: ${VERSION}
 section: utils
 priority: optional
-maintainer: Kaushal Vivek
-vendor: Kaushal Vivek
+maintainer: Vivek Kaushal
+vendor: Vivek Kaushal
 homepage: https://github.com/kaushalvivek/hn-cli
 license: MIT
 description: Hacker News in your terminal

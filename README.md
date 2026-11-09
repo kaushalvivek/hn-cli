@@ -345,6 +345,6 @@ Questions, ideas, or feedback: [vivekkaushal.com/talk](https://vivekkaushal.com/
 
 ## License
 
-[MIT](LICENSE) © 2026 Kaushal Vivek
+[MIT](LICENSE) © 2026 Vivek Kaushal
 
 `hn` is not affiliated with Y Combinator or Hacker News. Thanks to Hacker News for the site and APIs, Algolia for search, and the Rust open-source ecosystem.
