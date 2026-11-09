@@ -80,6 +80,16 @@ jobs:
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Install nfpm
+        run: |
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.48.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
       - name: Install musl tools
         run: |
           sudo apt-get update
@@ -109,6 +119,17 @@ jobs:
           tar -czf "$VERSIONED" -C dist hn LICENSE README.md
           cp "$VERSIONED" hn-linux-x86_64.tar.gz
 
+      - name: Build packages
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p pkg
+          ARCH=amd64 VERSION="$VERSION" nfpm package -f packaging/nfpm.yaml -p deb -t pkg/
+          ARCH=x86_64 VERSION="$VERSION" nfpm package -f packaging/nfpm.yaml -p rpm -t pkg/
+          ARCH=x86_64 VERSION="$VERSION" nfpm package -f packaging/nfpm.yaml -p archlinux -t pkg/
+          ARCH=x86_64 VERSION="$VERSION" nfpm package -f packaging/nfpm.yaml -p apk -t pkg/
+          ls -lh pkg
+
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
@@ -116,6 +137,7 @@ jobs:
           path: |
             hn-*-linux-x86_64.tar.gz
             hn-linux-x86_64.tar.gz
+            pkg/*
           if-no-files-found: error
 
   linux-aarch64:
@@ -134,6 +156,16 @@ jobs:
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Install nfpm
+        run: |
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.48.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Install musl tools
         run: |
@@ -164,6 +196,17 @@ jobs:
           tar -czf "$VERSIONED" -C dist hn LICENSE README.md
           cp "$VERSIONED" hn-linux-aarch64.tar.gz
 
+      - name: Build packages
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p pkg
+          ARCH=arm64 VERSION="$VERSION" nfpm package -f packaging/nfpm.yaml -p deb -t pkg/
+          ARCH=aarch64 VERSION="$VERSION" nfpm package -f packaging/nfpm.yaml -p rpm -t pkg/
+          ARCH=aarch64 VERSION="$VERSION" nfpm package -f packaging/nfpm.yaml -p archlinux -t pkg/
+          ARCH=aarch64 VERSION="$VERSION" nfpm package -f packaging/nfpm.yaml -p apk -t pkg/
+          ls -lh pkg
+
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
@@ -171,6 +214,7 @@ jobs:
           path: |
             hn-*-linux-aarch64.tar.gz
             hn-linux-aarch64.tar.gz
+            pkg/*
           if-no-files-found: error
 
   release:
@@ -190,7 +234,7 @@ jobs:
         run: |
           set -euo pipefail
           cd dist
-          sha256sum *.tar.gz > checksums.txt
+          sha256sum *.tar.gz *.deb *.rpm *.pkg.tar.zst *.apk > checksums.txt
           cat checksums.txt
 
       - name: Publish GitHub release
@@ -198,6 +242,10 @@ jobs:
         with:
           files: |
             dist/*.tar.gz
+            dist/*.deb
+            dist/*.rpm
+            dist/*.pkg.tar.zst
+            dist/*.apk
             dist/checksums.txt
           generate_release_notes: true
           fail_on_unmatched_files: true

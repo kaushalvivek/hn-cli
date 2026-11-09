@@ -1,0 +1,36 @@
+name: hn
+arch: ${ARCH}
+platform: linux
+version: ${VERSION}
+section: utils
+priority: optional
+maintainer: Kaushal Vivek
+vendor: Kaushal Vivek
+homepage: https://github.com/kaushalvivek/hn-cli
+license: MIT
+description: Hacker News in your terminal
+depends:
+  - ca-certificates
+contents:
+  - src: ./dist/hn
+    dst: /usr/bin/hn
+    file_info:
+      mode: 0755
+      owner: root
+      group: root
+  - src: ./LICENSE
+    dst: /usr/share/licenses/hn/LICENSE
+    file_info:
+      owner: root
+      group: root
+  - src: ./README.md
+    dst: /usr/share/doc/hn/README.md
+    file_info:
+      owner: root
+      group: root
+  - src: ./docs/hn.1
+    dst: /usr/share/man/man1/hn.1
+    file_info:
+      mode: 0644
+      owner: root
+      group: root

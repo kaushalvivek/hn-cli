@@ -1,0 +1,134 @@
+.TH HN 1 "November 2026" "hn 0.4.1" "User Commands"
+.SH NAME
+hn \- Hacker News in your terminal
+.SH SYNOPSIS
+.B hn
+[\fIOPTIONS\fR] [\fICOMMAND\fR]
+.SH DESCRIPTION
+.B hn
+is a terminal client for
+.I news.ycombinator.com
+with an interactive full-screen browser, a line-oriented CLI, and JSON output for scripts and agents.
+.PP
+Run
+.B hn
+without a command to open the browser. Run
+.B hn capabilities
+for a machine-readable command map.
+.SH OPTIONS
+.TP
+.B \-\-json
+Emit machine-readable JSON on standard output. Also enabled by
+.BR HN_JSON=1 .
+.TP
+.B \-\-no-color
+Disable ANSI color in human output. Also enabled by
+.BR NO_COLOR .
+.TP
+.B \-h, \-\-help
+Show help.
+.TP
+.B \-V, \-\-version
+Show the version.
+.SH COMMANDS
+.TP
+.B front, new, best, ask, show, jobs
+Read the main Hacker News feeds.
+.TP
+.B active, comments
+Threads with recent activity and the latest site-wide comments.
+.TP
+.B past [YYYY\-MM\-DD]
+Front page from a past day.
+.TP
+.B from \fIdomain\fR
+Submissions from one domain.
+.TP
+.B item \fIid\fR
+Show one item.
+.TP
+.B thread \fIid\fR
+Show an item and its comment tree.
+.TP
+.B context \fIid\fR
+Show a comment with its ancestor chain.
+.TP
+.B user \fIusername\fR
+Show a profile and activity.
+.TP
+.B search \fIquery\fR
+Search Hacker News through Algolia.
+.TP
+.B leaders, updates
+Top users by karma and recently changed items.
+.TP
+.B login, signup, logout, whoami
+Manage the saved Hacker News session.
+.TP
+.B vote, submit, comment, edit, delete
+Authenticated write actions. These use Hacker News' HTML forms and are unofficial.
+.TP
+.B favorite, hide, flag, unflag
+More authenticated actions.
+.TP
+.B drafts
+List locally saved drafts. Use
+.B \-\-clear
+to remove them.
+.TP
+.B capabilities
+Print the full command and JSON contract as JSON.
+.SH ENVIRONMENT
+.TP
+.B HN_CONFIG_DIR
+Directory for the session and drafts. Default:
+.IR ~/.config/hn .
+.TP
+.B HN_JSON
+Same as
+.BR \-\-json .
+.TP
+.B HN_PASSWORD
+Password for non-interactive login. Prefer
+.BR "\-\-password\-stdin" .
+.TP
+.B HN_SITE_URL, HN_FIREBASE_URL, HN_ALGOLIA_URL
+Override the upstream base URLs for testing.
+.TP
+.B VISUAL, EDITOR
+Editor used for interactive comments, edits, and story text.
+.TP
+.B NO_COLOR
+Disable color.
+.SH FILES
+.TP
+.I ~/.config/hn/session.json
+Saved Hacker News session cookie, mode 0600. Treat it as a secret.
+.TP
+.I ~/.config/hn/drafts.json
+Saved comment, edit, and submission drafts, mode 0600.
+.SH EXAMPLES
+.PP
+.nf
+hn
+hn front \-\-limit 10
+hn thread 8863
+hn search "rust async" \-\-sort date
+hn submit \-\-title "..." \-\-url https://example.com
+hn front \-\-limit 5 \-\-json | jq '.entries[] | .title'
+.fi
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Error. With
+.BR \-\-json ,
+the error is written to standard error as
+.BR '{"ok":false,"error":{"code":"...","message":"..."}}' .
+.SH SEE ALSO
+.BR jq (1)
+.PP
+Project home page:
+.IR https://github.com/kaushalvivek/hn-cli .

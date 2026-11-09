@@ -8,8 +8,9 @@ Releases: https://github.com/kaushalvivek/hn-cli/releases
 
 ## Install
 
-- Homebrew: `brew install kaushalvivek/tap/hn`
-- Script: `curl -fsSL https://raw.githubusercontent.com/kaushalvivek/hn-cli/main/install.sh | sh`
+- Linux, any distro: `curl -fsSL https://raw.githubusercontent.com/kaushalvivek/hn-cli/main/install.sh | sh`
+- Linux native packages: `.deb`, `.rpm`, Arch `.pkg.tar.zst`, and Alpine `.apk` on the Releases page
+- macOS: `brew install kaushalvivek/tap/hn`
 - Cargo: `cargo install --locked --git https://github.com/kaushalvivek/hn-cli`
 
 ## Use

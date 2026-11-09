@@ -27,10 +27,19 @@ Machine-readable command map: `hn capabilities`
 ## Install
 
 ```bash
-brew install kaushalvivek/tap/hn
-# or
+# Linux, any distribution (installs to ~/.local/bin)
 curl -fsSL https://raw.githubusercontent.com/kaushalvivek/hn-cli/main/install.sh | sh
-# or
+
+# Linux native packages are on the Releases page:
+#   Debian/Ubuntu  hn_<version>_<arch>.deb
+#   Fedora/RHEL    hn-<version>-1.<arch>.rpm
+#   Arch           hn-<version>-1-<arch>.pkg.tar.zst
+#   Alpine         hn_<version>_<arch>.apk
+
+# macOS
+brew install kaushalvivek/tap/hn
+
+# From source
 cargo install --locked --git https://github.com/kaushalvivek/hn-cli
 ```
 

@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.1] - 2026-11-09
+
+### Added
+
+- Native Linux packages for x86_64 and aarch64: Debian/Ubuntu `.deb`, Fedora/RHEL/openSUSE `.rpm`, Arch Linux `.pkg.tar.zst`, and Alpine `.apk`.
+- A `hn(1)` man page included in native packages.
+- Linux-first installation docs covering apt, dnf, pacman, the universal install script, Cargo, and source builds.
+- `install.sh --help`, clearer permission errors, and a CA-certificate hint for minimal Linux systems.
+
+### Changed
+
+- Release checksums now cover native Linux packages as well as tarballs.
+- Release workflow builds packages with nfpm on both Linux runners.
+
 ## [0.4.0] - 2026-11-09
 
 ### Added
@@ -85,6 +99,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Session storage with `0600` permissions and no password persistence.
 - Homebrew tap, install script, universal macOS release assets, and CI.
 
+[0.4.1]: https://github.com/kaushalvivek/hn-cli/releases/tag/v0.4.1
 [0.4.0]: https://github.com/kaushalvivek/hn-cli/releases/tag/v0.4.0
 [0.3.1]: https://github.com/kaushalvivek/hn-cli/releases/tag/v0.3.1
 [0.3.0]: https://github.com/kaushalvivek/hn-cli/releases/tag/v0.3.0

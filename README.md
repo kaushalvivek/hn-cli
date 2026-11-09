@@ -18,9 +18,70 @@
 
 ## Install
 
-`hn` is a single Rust binary for macOS and Linux. The Linux build is static; no runtime, no Xcode, no Swift.
+`hn` is a single static binary on Linux and a universal binary on macOS.
 
-### Homebrew (macOS and Linux)
+### Linux
+
+Native packages install `hn`, its man page, license, and README. The only runtime dependency is `ca-certificates`.
+
+#### Debian / Ubuntu
+
+```bash
+VERSION=0.4.1
+curl -LO "https://github.com/kaushalvivek/hn-cli/releases/download/v${VERSION}/hn_${VERSION}_amd64.deb"
+sudo apt install "./hn_${VERSION}_amd64.deb"
+```
+
+Use `arm64` instead of `amd64` on ARM servers.
+
+#### Fedora / RHEL / openSUSE
+
+```bash
+VERSION=0.4.1
+curl -LO "https://github.com/kaushalvivek/hn-cli/releases/download/v${VERSION}/hn-${VERSION}-1.x86_64.rpm"
+sudo dnf install "./hn-${VERSION}-1.x86_64.rpm"
+# openSUSE: sudo zypper install "./hn-${VERSION}-1.x86_64.rpm"
+```
+
+Use `aarch64` instead of `x86_64` on ARM servers.
+
+#### Arch Linux
+
+```bash
+VERSION=0.4.1
+curl -LO "https://github.com/kaushalvivek/hn-cli/releases/download/v${VERSION}/hn-${VERSION}-1-x86_64.pkg.tar.zst"
+sudo pacman -U "./hn-${VERSION}-1-x86_64.pkg.tar.zst"
+```
+
+Use `aarch64` instead of `x86_64` on ARM servers.
+
+#### Alpine Linux
+
+```bash
+VERSION=0.4.1
+curl -LO "https://github.com/kaushalvivek/hn-cli/releases/download/v${VERSION}/hn_${VERSION}_x86_64.apk"
+sudo apk add --allow-untrusted "./hn_${VERSION}_x86_64.apk"
+```
+
+Use `aarch64` instead of `x86_64` on ARM servers.
+
+#### Any Linux distribution, no root
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kaushalvivek/hn-cli/main/install.sh | sh
+```
+
+Detects x86_64 or aarch64 and installs to `~/.local/bin`. Override with `HN_INSTALL_DIR` and pin a release with `HN_VERSION`:
+
+```bash
+HN_VERSION=0.4.1 HN_INSTALL_DIR="$HOME/bin" sh install.sh
+```
+
+All Linux release binaries are statically linked against musl and run across distributions. They need CA certificates for HTTPS; install `ca-certificates` on minimal systems.
+
+### macOS
+
+Homebrew is the simplest option:
 
 ```bash
 brew install kaushalvivek/tap/hn
@@ -28,34 +89,33 @@ brew install kaushalvivek/tap/hn
 
 > Homebrew 7 may ask you to trust a third-party tap on first use. If prompted, run `brew trust kaushalvivek/tap`.
 
-### Install script
+Or use the same install script as Linux:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kaushalvivek/hn-cli/main/install.sh | sh
 ```
 
-Detects macOS or Linux and Apple Silicon, Intel, or arm64. Installs to `~/.local/bin`; override with `HN_INSTALL_DIR`. On minimal Linux systems, install `ca-certificates` for HTTPS.
-
 ### Direct download
 
-| Platform | Asset |
-| --- | --- |
-| macOS (Apple Silicon + Intel) | `hn-macos-universal.tar.gz` |
-| Linux x86_64 | `hn-linux-x86_64.tar.gz` |
-| Linux aarch64 | `hn-linux-aarch64.tar.gz` |
+| Platform | Archive | Native packages |
+| --- | --- | --- |
+| macOS Apple Silicon + Intel | `hn-macos-universal.tar.gz` | — |
+| Linux x86_64 | `hn-linux-x86_64.tar.gz` | `.deb`, `.rpm`, `.pkg.tar.zst`, `.apk` |
+| Linux aarch64 | `hn-linux-aarch64.tar.gz` | `.deb`, `.rpm`, `.pkg.tar.zst`, `.apk` |
 
 ```bash
-VERSION=0.4.0
+VERSION=0.4.1
 ASSET=hn-linux-x86_64.tar.gz   # or hn-macos-universal.tar.gz
 curl -LO "https://github.com/kaushalvivek/hn-cli/releases/download/v${VERSION}/${ASSET}"
 curl -LO "https://github.com/kaushalvivek/hn-cli/releases/download/v${VERSION}/checksums.txt"
-shasum -a 256 -c checksums.txt --ignore-missing
+# Linux:
+sha256sum -c checksums.txt --ignore-missing
+# macOS:
+# grep " ${ASSET}$" checksums.txt | shasum -a 256 -c -
 tar -xzf "$ASSET"
 mkdir -p ~/.local/bin
 install -m 755 hn ~/.local/bin/hn
 ```
-
-Linux release binaries are statically linked against musl and run on any distribution. They need CA certificates (normally already installed) for HTTPS.
 
 ### Cargo
 
@@ -77,17 +137,20 @@ make install
 
 ### Updating
 
-```bash
-brew upgrade hn            # Homebrew
-# or re-run the install script
-```
+- **Linux packages:** download and install the new package with the same command.
+- **Install script:** re-run it.
+- **Homebrew:** `brew upgrade hn`.
 
 ### Uninstalling
 
 ```bash
-brew uninstall hn
+sudo apt remove hn        # Debian / Ubuntu
+sudo dnf remove hn        # Fedora / RHEL
+sudo pacman -Rns hn       # Arch
+sudo apk del hn           # Alpine
 rm -f ~/.local/bin/hn     # install-script installs
-rm -rf ~/.config/hn       # saved session and drafts
+brew uninstall hn         # Homebrew
+rm -rf ~/.config/hn       # optional: remove session and drafts
 ```
 
 ## Quick start
