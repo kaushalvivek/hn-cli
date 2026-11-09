@@ -22,15 +22,15 @@ Commit the change:
 
 ```bash
 git add Cargo.toml Cargo.lock CHANGELOG.md
-git commit -m "Release v0.4.1"
+git commit -m "Release v0.4.2"
 git push origin main
 ```
 
 ## 2. Tag and push
 
 ```bash
-git tag -a v0.4.1 -m "v0.4.1"
-git push origin v0.4.1
+git tag -a v0.4.2 -m "v0.4.2"
+git push origin v0.4.2
 ```
 
 The `Release` workflow builds on native runners:
@@ -40,7 +40,7 @@ The `Release` workflow builds on native runners:
 3. Linux `aarch64`, statically linked against musl.
 
 Each platform runs the test suite and produces both a versioned archive
-(`hn-v0.4.1-<platform>.tar.gz`) and a stable alias (`hn-<platform>.tar.gz`).
+(`hn-v0.4.2-<platform>.tar.gz`) and a stable alias (`hn-<platform>.tar.gz`).
 The Linux jobs also build `.deb`, `.rpm`, Arch Linux `.pkg.tar.zst`, and
 Alpine `.apk` packages with nfpm. The release job publishes every archive, package, and
 `checksums.txt`.
@@ -57,7 +57,7 @@ gh run watch
 Download the checksums:
 
 ```bash
-gh release download v0.4.1 -R kaushalvivek/hn-cli -p checksums.txt -D /tmp/hn-release --clobber
+gh release download v0.4.2 -R kaushalvivek/hn-cli -p checksums.txt -D /tmp/hn-release --clobber
 cat /tmp/hn-release/checksums.txt
 ```
 
@@ -65,7 +65,7 @@ Update `Formula/hn.rb` in
 [`kaushalvivek/homebrew-tap`](https://github.com/kaushalvivek/homebrew-tap)
 with:
 
-- `version "0.4.1"`
+- `version "0.4.2"`
 - `on_macos` / `on_linux` and `on_arm` / `on_intel` URLs
 - the matching `sha256` for each of the three assets
 - the `test` version string
@@ -74,7 +74,7 @@ Commit and push:
 
 ```bash
 git -C ../homebrew-tap add Formula/hn.rb
-git -C ../homebrew-tap commit -m "hn 0.4.1"
+git -C ../homebrew-tap commit -m "hn 0.4.2"
 git -C ../homebrew-tap push
 ```
 
@@ -86,7 +86,7 @@ brew upgrade hn
 brew test kaushalvivek/tap/hn
 hn --version
 
-HN_VERSION=0.4.1 HN_INSTALL_DIR=/tmp/hn-install sh install.sh
+HN_VERSION=0.4.2 HN_INSTALL_DIR=/tmp/hn-install sh install.sh
 /tmp/hn-install/hn --version
 ```
 
@@ -94,16 +94,16 @@ Verify the native packages:
 
 ```bash
 # Debian/Ubuntu
-sudo apt install ./hn_0.4.1_amd64.deb && hn --version && man hn
+sudo apt install ./hn_0.4.2_amd64.deb && hn --version && man hn
 
 # Fedora/RHEL
-sudo dnf install ./hn-0.4.1-1.x86_64.rpm && hn --version && man hn
+sudo dnf install ./hn-0.4.2-1.x86_64.rpm && hn --version && man hn
 
 # Arch Linux
-sudo pacman -U ./hn-0.4.1-1-x86_64.pkg.tar.zst && hn --version && man hn
+sudo pacman -U ./hn-0.4.2-1-x86_64.pkg.tar.zst && hn --version && man hn
 
 # Alpine
-sudo apk add --allow-untrusted ./hn_0.4.1_x86_64.apk && hn --version && man hn
+sudo apk add --allow-untrusted ./hn_0.4.2_x86_64.apk && hn --version && man hn
 ```
 
 ## 5. Local install

@@ -234,6 +234,10 @@ jobs:
         run: |
           set -euo pipefail
           cd dist
+          if [ -d pkg ]; then
+            mv pkg/* .
+            rmdir pkg
+          fi
           sha256sum *.tar.gz *.deb *.rpm *.pkg.tar.zst *.apk > checksums.txt
           cat checksums.txt
 

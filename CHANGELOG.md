@@ -6,11 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [0.4.2] - 2026-11-09
 
+### Added
+
+- Native Linux packages for x86_64 and aarch64: Debian/Ubuntu `.deb`, Fedora/RHEL/openSUSE `.rpm`, Arch Linux `.pkg.tar.zst`, and Alpine `.apk`.
+- A `hn(1)` man page included in native packages.
+- Linux-first installation docs covering apt, dnf, zypper, pacman, apk, the universal install script, Cargo, and source builds.
+- `install.sh --help`, clearer permission errors, and a CA-certificate hint for minimal Linux systems.
+
+### Changed
+
+- Release checksums cover native Linux packages as well as tarballs.
+- The release workflow builds packages with nfpm on both Linux runners.
+
 ### Fixed
 
 - `NO_COLOR` follows [no-color.org](https://no-color.org/): any non-empty value disables color, and an empty value is treated as unset. `NO_COLOR=1` no longer aborts every command.
 - `HN_JSON=1` (and `true` / `yes` / `on`) enables JSON. `0` / `false` / `no` / `off` leave it off, and an empty value is treated as unset. The variable no longer has to be the string `true` or `false`.
 
+## [0.4.0] - 2026-11-09
+
+### Added
+
+- A real story submission form in the TUI: separate Title, Link, and Text fields with `Tab`/`Shift-Tab` navigation.
+- Interactive `hn submit`: prompts for title and link, opens `$VISUAL`/`$EDITOR` for text posts, and resumes drafts with `--use-draft`.
+- Submission drafts store title, link, text, and timestamp, and survive failed posts and quitting the TUI.
+- Link normalization (`example.com/post` → `https://example.com/post`) and validation for HTTP(S) links.
+- Title validation with the Hacker News 80-character limit.
+
+### Changed
+
+- `hn submit` no longer requires `--title`; in a terminal it guides you through the fields.
+- `hn drafts` now shows submission titles, links, and a resume hint.
+- The TUI command palette includes "Submit a story".
 
 ## [0.3.1] - 2026-11-09
 
@@ -77,7 +104,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Session storage with `0600` permissions and no password persistence.
 - Homebrew tap, install script, universal macOS release assets, and CI.
 
-[0.4.1]: https://github.com/kaushalvivek/hn-cli/releases/tag/v0.4.1
+[0.4.2]: https://github.com/kaushalvivek/hn-cli/releases/tag/v0.4.2
 [0.4.0]: https://github.com/kaushalvivek/hn-cli/releases/tag/v0.4.0
 [0.3.1]: https://github.com/kaushalvivek/hn-cli/releases/tag/v0.3.1
 [0.3.0]: https://github.com/kaushalvivek/hn-cli/releases/tag/v0.3.0

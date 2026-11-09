@@ -27,7 +27,7 @@ Native packages install `hn`, its man page, license, and README. The only runtim
 #### Debian / Ubuntu
 
 ```bash
-VERSION=0.4.1
+VERSION=0.4.2
 curl -LO "https://github.com/kaushalvivek/hn-cli/releases/download/v${VERSION}/hn_${VERSION}_amd64.deb"
 sudo apt install "./hn_${VERSION}_amd64.deb"
 ```
@@ -37,7 +37,7 @@ Use `arm64` instead of `amd64` on ARM servers.
 #### Fedora / RHEL / openSUSE
 
 ```bash
-VERSION=0.4.1
+VERSION=0.4.2
 curl -LO "https://github.com/kaushalvivek/hn-cli/releases/download/v${VERSION}/hn-${VERSION}-1.x86_64.rpm"
 sudo dnf install "./hn-${VERSION}-1.x86_64.rpm"
 # openSUSE: sudo zypper install "./hn-${VERSION}-1.x86_64.rpm"
@@ -48,7 +48,7 @@ Use `aarch64` instead of `x86_64` on ARM servers.
 #### Arch Linux
 
 ```bash
-VERSION=0.4.1
+VERSION=0.4.2
 curl -LO "https://github.com/kaushalvivek/hn-cli/releases/download/v${VERSION}/hn-${VERSION}-1-x86_64.pkg.tar.zst"
 sudo pacman -U "./hn-${VERSION}-1-x86_64.pkg.tar.zst"
 ```
@@ -58,7 +58,7 @@ Use `aarch64` instead of `x86_64` on ARM servers.
 #### Alpine Linux
 
 ```bash
-VERSION=0.4.1
+VERSION=0.4.2
 curl -LO "https://github.com/kaushalvivek/hn-cli/releases/download/v${VERSION}/hn_${VERSION}_x86_64.apk"
 sudo apk add --allow-untrusted "./hn_${VERSION}_x86_64.apk"
 ```
@@ -74,7 +74,7 @@ curl -fsSL https://raw.githubusercontent.com/kaushalvivek/hn-cli/main/install.sh
 Detects x86_64 or aarch64 and installs to `~/.local/bin`. Override with `HN_INSTALL_DIR` and pin a release with `HN_VERSION`:
 
 ```bash
-HN_VERSION=0.4.1 HN_INSTALL_DIR="$HOME/bin" sh install.sh
+HN_VERSION=0.4.2 HN_INSTALL_DIR="$HOME/bin" sh install.sh
 ```
 
 All Linux release binaries are statically linked against musl and run across distributions. They need CA certificates for HTTPS; install `ca-certificates` on minimal systems.
@@ -104,7 +104,7 @@ curl -fsSL https://raw.githubusercontent.com/kaushalvivek/hn-cli/main/install.sh
 | Linux aarch64 | `hn-linux-aarch64.tar.gz` | `.deb`, `.rpm`, `.pkg.tar.zst`, `.apk` |
 
 ```bash
-VERSION=0.4.1
+VERSION=0.4.2
 ASSET=hn-linux-x86_64.tar.gz   # or hn-macos-universal.tar.gz
 curl -LO "https://github.com/kaushalvivek/hn-cli/releases/download/v${VERSION}/${ASSET}"
 curl -LO "https://github.com/kaushalvivek/hn-cli/releases/download/v${VERSION}/checksums.txt"
