@@ -236,13 +236,13 @@ Exit codes: `0` success, `1` error.
 
 | Variable | Meaning |
 | --- | --- |
-| `HN_JSON` | Same as `--json` |
+| `HN_JSON` | Same as `--json`. `1` and `true` enable JSON; `0` and `false` disable it; an empty value is unset |
 | `HN_CONFIG_DIR` | Config directory (default `~/.config/hn`) |
 | `HN_PASSWORD` | Password for non-interactive login; prefer `--password-stdin` |
 | `HN_SITE_URL` | Override the HN HTML base URL (tests) |
 | `HN_FIREBASE_URL` | Override the Firebase base URL (tests) |
 | `HN_ALGOLIA_URL` | Override the Algolia base URL (tests) |
-| `NO_COLOR` | Disable ANSI color in human output |
+| `NO_COLOR` | Disable ANSI color when set to any non-empty value. An empty value is unset |
 | `VISUAL`, `EDITOR` | Editor for interactive text entry |
 
 ## Notes for coding agents
