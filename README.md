@@ -3,7 +3,7 @@
   <h1>hn</h1>
   <p><strong>Hacker News in your terminal.</strong></p>
   <p>An interactive full-screen browser, a scriptable CLI, and a first-class JSON interface for agents — for <a href="https://news.ycombinator.com">news.ycombinator.com</a>.</p>
-  <p><a href="https://kaushalvivek.github.io/hn-cli/"><strong>Website</strong></a> · <a href="AGENTS.md">Agent guide</a> · <a href="llms.txt">llms.txt</a></p>
+  <p><a href="https://hn.vivekkaushal.com/"><strong>Website</strong></a> · <a href="AGENTS.md">Agent guide</a> · <a href="llms.txt">llms.txt</a></p>
 
   <p>
     <a href="https://github.com/kaushalvivek/hn-cli/actions/workflows/ci.yml"><img src="https://github.com/kaushalvivek/hn-cli/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
