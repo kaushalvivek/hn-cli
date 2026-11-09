@@ -9,7 +9,7 @@ use serde_json::json;
 use crate::client::HackerNews;
 use crate::domain::*;
 use crate::drafts::{
-    DraftRecord, Drafts, excerpt, key_comment, key_edit, load_drafts, save_drafts,
+    DraftRecord, Drafts, SUBMIT_DRAFT_KEY, excerpt, key_comment, key_edit, load_drafts, save_drafts,
 };
 use crate::error::{HnError, Result};
 use crate::site::{LoginCredentials, SiteFeedEntry, SiteFeedPage, html_to_text};
@@ -152,11 +152,14 @@ pub enum Command {
     /// Submit a story.
     Submit {
         #[arg(short, long)]
-        title: String,
+        title: Option<String>,
         #[arg(long)]
         url: Option<String>,
         #[arg(long)]
         text: Option<String>,
+        /// Resume the saved submission draft.
+        #[arg(long)]
+        use_draft: bool,
     },
     /// Post a comment or reply.
     #[command(alias = "reply")]
@@ -691,23 +694,47 @@ impl Cli {
                 out.ok(&format!("{label} {id}"), json!({ "item_id": id }))?;
                 Ok(())
             }
-            Command::Submit { title, url, text } => {
-                let text = match text {
-                    Some(text) if text == "-" => Some(read_stdin()?),
-                    Some(text) => Some(text),
-                    None if url.is_none() => Some(edit_text("")?),
-                    None => None,
-                };
-                let submission = StorySubmission::new(title, url, text)?;
-                let id = client.submit_story(&submission).await?;
-                if out.json {
-                    out.print_json(&json!({ "ok": true, "item_id": id }))?;
-                } else if let Some(id) = id {
-                    println!("Submitted: https://news.ycombinator.com/item?id={id}");
-                } else {
-                    println!("Submitted to Hacker News.");
+            Command::Submit {
+                title,
+                url,
+                text,
+                use_draft,
+            } => {
+                let submission = resolve_story_submission(title, url, text, use_draft)?;
+                match client.submit_story(&submission).await {
+                    Ok(id) => {
+                        let mut drafts = load_drafts().unwrap_or_default();
+                        drafts.remove(SUBMIT_DRAFT_KEY);
+                        let _ = save_drafts(&drafts);
+                        if out.json {
+                            out.print_json(&json!({ "ok": true, "item_id": id }))?;
+                        } else if let Some(id) = id {
+                            println!("Submitted: https://news.ycombinator.com/item?id={id}");
+                        } else {
+                            println!("Submitted to Hacker News.");
+                        }
+                        Ok(())
+                    }
+                    Err(error) => {
+                        let mut drafts = load_drafts().unwrap_or_default();
+                        drafts.insert(
+                            SUBMIT_DRAFT_KEY.into(),
+                            DraftRecord {
+                                text: submission.text.clone().unwrap_or_default(),
+                                saved_at: Utc::now(),
+                                title: Some(submission.title.clone()),
+                                url: submission.url.clone(),
+                            },
+                        );
+                        let _ = save_drafts(&drafts);
+                        if !out.json {
+                            eprintln!(
+                                "Your submission was saved as a draft. Resume it with: hn submit --use-draft"
+                            );
+                        }
+                        Err(error)
+                    }
                 }
-                Ok(())
             }
             Command::Comment {
                 parent_id,
@@ -746,6 +773,8 @@ impl Cli {
                             DraftRecord {
                                 text,
                                 saved_at: Utc::now(),
+                                title: None,
+                                url: None,
                             },
                         );
                         let _ = save_drafts(&drafts);
@@ -788,6 +817,8 @@ impl Cli {
                             DraftRecord {
                                 text,
                                 saved_at: Utc::now(),
+                                title: None,
+                                url: None,
                             },
                         );
                         let _ = save_drafts(&drafts);
@@ -880,8 +911,18 @@ fn drafts_command(out: &Out, clear: bool) -> Result<()> {
             out.bold(key),
             out.dim(&draft.saved_at.format("%Y-%m-%d %H:%M").to_string())
         );
-        println!("  {}", excerpt(&draft.text, 120));
-        if let Some(id) = draft_target(key) {
+        if let Some(title) = &draft.title {
+            println!("  Title: {title}");
+        }
+        if let Some(url) = &draft.url {
+            println!("  Link:  {}", out.link(url));
+        }
+        if !draft.text.trim().is_empty() {
+            println!("  {}", excerpt(&draft.text, 120));
+        }
+        if key == SUBMIT_DRAFT_KEY {
+            println!("  {}", out.dim("hn submit --use-draft"));
+        } else if let Some(id) = draft_target(key) {
             let command = if key.starts_with("comment:") {
                 Some(format!("hn comment {id} --use-draft"))
             } else if key.starts_with("edit:") {
@@ -1308,6 +1349,71 @@ fn truncate(value: &str, max: usize) -> String {
     }
 }
 
+fn prompt_line(prompt: &str) -> Result<String> {
+    eprint!("{prompt}");
+    std::io::stderr().flush().ok();
+    let mut line = String::new();
+    std::io::stdin()
+        .read_line(&mut line)
+        .map_err(|error| HnError::Transport(error.to_string()))?;
+    Ok(line.trim().to_string())
+}
+
+fn resolve_story_submission(
+    title: Option<String>,
+    url: Option<String>,
+    text: Option<String>,
+    use_draft: bool,
+) -> Result<StorySubmission> {
+    let draft = if use_draft {
+        load_drafts()
+            .unwrap_or_default()
+            .get(SUBMIT_DRAFT_KEY)
+            .cloned()
+    } else {
+        None
+    };
+    let mut title = title.or_else(|| draft.as_ref().and_then(|draft| draft.title.clone()));
+    let mut url = url.or_else(|| draft.as_ref().and_then(|draft| draft.url.clone()));
+    let mut text = match text {
+        Some(text) if text == "-" => Some(read_stdin()?),
+        Some(text) => Some(text),
+        None => draft
+            .as_ref()
+            .map(|draft| draft.text.clone())
+            .filter(|text| !text.trim().is_empty()),
+    };
+
+    if title
+        .as_deref()
+        .map(|title| title.trim().is_empty())
+        .unwrap_or(true)
+        && std::io::stdin().is_terminal()
+    {
+        title = Some(prompt_line("Title: ")?);
+    }
+    let title = title.ok_or_else(|| {
+        HnError::InvalidInput("a title is required; pass --title or run interactively".into())
+    })?;
+
+    if url.is_none() && text.is_none() && std::io::stdin().is_terminal() {
+        let link = prompt_line("Link (leave empty for a text post): ")?;
+        if !link.trim().is_empty() {
+            url = Some(link);
+        }
+        if url.is_none() {
+            eprintln!("Write the post text below. Save and quit your editor to submit.");
+            text = Some(edit_text("")?);
+        }
+    }
+    if url.is_none() && text.is_none() {
+        return Err(HnError::InvalidInput(
+            "pass --url or --text, or run interactively".into(),
+        ));
+    }
+    StorySubmission::new(title, url, text)
+}
+
 async fn compose_comment_text(
     client: &HackerNews,
     parent: ItemId,
@@ -1573,7 +1679,7 @@ fn capabilities() -> serde_json::Value {
             {"name": "logout", "auth": true, "args": [], "output": "{ok}"},
             {"name": "whoami", "auth": false, "args": [], "output": "{user_id} | {authenticated:false}"},
             {"name": "vote", "auth": true, "args": ["id", "--down", "--undo"], "output": "{ok,item_id}"},
-            {"name": "submit", "auth": true, "args": ["--title", "--url", "--text"], "output": "{ok,item_id}"},
+            {"name": "submit", "auth": true, "args": ["--title", "--url", "--text", "--use-draft"], "output": "{ok,item_id}"},
             {"name": "comment", "auth": true, "args": ["parent_id", "--text", "--use-draft"], "output": "{ok,comment_id}"},
             {"name": "edit", "auth": true, "args": ["id", "--text", "--use-draft"], "output": "{ok,item_id}"},
             {"name": "delete", "auth": true, "args": ["id", "--yes"], "output": "{ok,item_id}"},

@@ -13,6 +13,10 @@ pub type Drafts = HashMap<String, DraftRecord>;
 pub struct DraftRecord {
     pub text: String,
     pub saved_at: DateTime<Utc>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
 }
 
 pub fn key_comment(parent_id: ItemId) -> String {
@@ -23,9 +27,7 @@ pub fn key_edit(item_id: ItemId) -> String {
     format!("edit:{}", item_id.0)
 }
 
-pub fn key_submit(title: &str) -> String {
-    format!("submit:{title}")
-}
+pub const SUBMIT_DRAFT_KEY: &str = "submit:new";
 
 fn drafts_path() -> std::path::PathBuf {
     config_dir().join("drafts.json")
@@ -81,7 +83,7 @@ mod tests {
     fn draft_keys_are_stable() {
         assert_eq!(key_comment(ItemId(42)), "comment:42");
         assert_eq!(key_edit(ItemId(42)), "edit:42");
-        assert_eq!(key_submit("Hello"), "submit:Hello");
+        assert_eq!(SUBMIT_DRAFT_KEY, "submit:new");
     }
 
     #[test]
@@ -92,11 +94,23 @@ mod tests {
             DraftRecord {
                 text: "a draft".into(),
                 saved_at: chrono::Utc.timestamp_opt(100, 0).unwrap(),
+                title: None,
+                url: None,
             },
         );
         let data = serde_json::to_vec(&drafts).unwrap();
         let decoded: Drafts = serde_json::from_slice(&data).unwrap();
         assert_eq!(decoded[&key_comment(ItemId(7))].text, "a draft");
+
+        let submit = DraftRecord {
+            text: "body".into(),
+            saved_at: chrono::Utc.timestamp_opt(100, 0).unwrap(),
+            title: Some("Title".into()),
+            url: Some("https://example.com".into()),
+        };
+        let value = serde_json::to_value(&submit).unwrap();
+        assert_eq!(value["title"], "Title");
+        assert_eq!(value["url"], "https://example.com");
     }
 
     #[test]

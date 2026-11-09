@@ -45,7 +45,7 @@ Detects macOS or Linux and Apple Silicon, Intel, or arm64. Installs to `~/.local
 | Linux aarch64 | `hn-linux-aarch64.tar.gz` |
 
 ```bash
-VERSION=0.3.1
+VERSION=0.4.0
 ASSET=hn-linux-x86_64.tar.gz   # or hn-macos-universal.tar.gz
 curl -LO "https://github.com/kaushalvivek/hn-cli/releases/download/v${VERSION}/${ASSET}"
 curl -LO "https://github.com/kaushalvivek/hn-cli/releases/download/v${VERSION}/checksums.txt"
@@ -160,7 +160,7 @@ Agent guides: [`AGENTS.md`](AGENTS.md) and [`llms.txt`](llms.txt).
 | `H` / `U` | Hide / unhide |
 | `!` | Flag |
 | `c` / `e` / `d` | Comment / edit / delete |
-| `s` | Submit a text story |
+| `s` | Submit a story (title, link, text) |
 | `L` | Log in |
 | `?` | Keyboard help |
 | `q` / `Ctrl-C` | Quit |
@@ -194,7 +194,9 @@ Pagination is `--limit N --page N` on feed and activity commands.
 ```bash
 hn login
 hn vote 8863
+hn submit
 hn submit --title "..." --url https://example.com
+hn submit --title "..." --text "A text post"
 hn comment 8863 --text "..."
 hn comment 8863                 # context + $EDITOR, saved as a draft on failure
 hn comment 8863 --use-draft     # resume a saved draft
@@ -205,6 +207,24 @@ hn hide 8863
 hn flag 8863 --reason spam
 hn unflag 8863
 hn logout
+```
+
+#### Submitting a story
+
+In the browser, press `s` to open a real submission form:
+
+- **Title** is required (80 characters max).
+- **Link** is optional. Fill it for a link post. A bare domain like `example.com/post` is normalized to `https://example.com/post`.
+- **Text** is optional. Leave Link empty and write text for a text post.
+
+`Tab` / `Shift-Tab` move between fields, `Ctrl-S` submits, and `Esc` saves the whole form as a draft. Failed submissions are kept as drafts too.
+
+From the CLI, `hn submit` walks you through the same fields: it prompts for a title and link, and opens `$VISUAL`/`$EDITOR` when you leave the link empty. Non-interactive use is explicit:
+
+```bash
+hn submit --title "..." --url https://example.com
+hn submit --title "..." --text "A text post"
+hn submit --use-draft          # resume a saved submission
 ```
 
 When `hn comment` runs in a terminal without `--text`, it fetches the parent, prints the author and a quoted excerpt, opens `$VISUAL`/`$EDITOR`, and saves the text as a draft if posting fails. `hn drafts` lists drafts; `hn drafts --clear` removes them.

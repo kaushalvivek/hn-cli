@@ -193,7 +193,9 @@ hn vote 8863
 hn vote 8863 --down
 hn vote 8863 --undo
 hn submit --title "..." --url https://example.com
-hn submit --title "..." --text "..."
+hn submit --title "..." --text "..."     # text post
+hn submit                                  # interactive prompts + editor
+hn submit --use-draft                      # resume a saved submission
 hn comment 8863 --text "..."
 hn edit 8863 --text "..."
 hn delete 8863 --yes
@@ -204,6 +206,8 @@ hn unflag 8863
 ```
 
 Success shape: `{"ok": true, "action": "...", "item_id": 8863}` (or `comment_id`). Hacker News writes are unofficial and depend on HTML forms; errors such as `rate_limited`, `unsupported`, or `invalid_input` are expected failure modes.
+
+`hn submit` normalizes a bare domain (`example.com/post` becomes `https://example.com/post`), requires an HTTP(S) link, and limits titles to 80 characters. A failed submission is saved as `submit:new`; `hn submit --use-draft` resumes it. In the TUI, `s` opens a three-field form (title, link, text).
 
 Interactive `hn comment <id>` without `--text` prints parent context and opens `$VISUAL`/`$EDITOR`; on failure it saves a draft. `hn drafts` lists drafts and `--use-draft` resumes them. Agents should normally pass `--text` or `--text -` (stdin) instead of opening an editor.
 

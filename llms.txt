@@ -26,6 +26,8 @@ Releases: https://github.com/kaushalvivek/hn-cli/releases
 
 Writes require an explicit user request: `hn vote`, `hn submit`, `hn comment`, `hn edit`, `hn delete`, `hn favorite`, `hn hide`, `hn flag`, `hn unflag`.
 
+Submission: `hn submit --title "..." --url https://example.com`, `hn submit --title "..." --text "..."`, or interactive `hn submit`. `hn submit --use-draft` resumes a saved submission. TUI: press `s` for a title/link/text form.
+
 ## Contract
 
 - stdout is data; stderr is diagnostics.

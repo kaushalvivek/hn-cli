@@ -533,14 +533,47 @@ impl StorySubmission {
                 "story title must not be empty".into(),
             ));
         }
+        if title.chars().count() > 80 {
+            return Err(HnError::InvalidInput(
+                "story titles are limited to 80 characters".into(),
+            ));
+        }
+        let url = url
+            .map(|url| url.trim().to_string())
+            .filter(|url| !url.is_empty());
+        let url = match url {
+            Some(url) => Some(normalize_story_url(&url)?),
+            None => None,
+        };
         let text = text
             .map(|text| text.trim().to_string())
             .filter(|text| !text.is_empty());
         if url.is_none() && text.is_none() {
-            return Err(HnError::InvalidInput("a story needs a URL or text".into()));
+            return Err(HnError::InvalidInput(
+                "a story needs a link or some text".into(),
+            ));
         }
         Ok(Self { title, url, text })
     }
+}
+
+fn normalize_story_url(value: &str) -> Result<String> {
+    let url = url::Url::parse(value)
+        .or_else(|_| url::Url::parse(&format!("https://{value}")))
+        .map_err(|_| {
+            HnError::InvalidInput("enter a valid link, such as https://example.com".into())
+        })?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err(HnError::InvalidInput(
+            "links must start with http:// or https://".into(),
+        ));
+    }
+    if url.host_str().is_none() {
+        return Err(HnError::InvalidInput(
+            "enter a valid link, such as https://example.com".into(),
+        ));
+    }
+    Ok(url.to_string())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -605,6 +638,11 @@ mod tests {
         let story = StorySubmission::new(" Title ", None, Some(" text ".into())).unwrap();
         assert_eq!(story.title, "Title");
         assert_eq!(story.text.as_deref(), Some("text"));
+
+        let link = StorySubmission::new("Title", Some("example.com/post".into()), None).unwrap();
+        assert_eq!(link.url.as_deref(), Some("https://example.com/post"));
+        assert!(StorySubmission::new("Title", Some("not a url".into()), None,).is_err());
+        assert!(StorySubmission::new("Title", Some("mailto:a@example.com".into()), None,).is_err());
     }
 
     #[test]

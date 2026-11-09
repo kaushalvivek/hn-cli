@@ -24,7 +24,7 @@ use tokio::sync::mpsc;
 use crate::client::HackerNews;
 use crate::domain::*;
 use crate::drafts::{
-    DraftRecord, Drafts, key_comment, key_edit, key_submit, load_drafts, save_drafts,
+    DraftRecord, Drafts, SUBMIT_DRAFT_KEY, key_comment, key_edit, load_drafts, save_drafts,
 };
 use crate::error::{HnError, Result};
 use crate::site::{LoginCredentials, SiteFeedEntry, UserSession, html_to_text};
@@ -353,7 +353,6 @@ struct ComposeContext {
 enum ComposeKind {
     Comment { parent_id: ItemId },
     Edit { item_id: ItemId },
-    SubmitText { title: String },
 }
 
 impl ComposeKind {
@@ -361,7 +360,6 @@ impl ComposeKind {
         match self {
             ComposeKind::Comment { parent_id } => key_comment(*parent_id),
             ComposeKind::Edit { item_id } => key_edit(*item_id),
-            ComposeKind::SubmitText { title } => key_submit(title),
         }
     }
 
@@ -369,7 +367,6 @@ impl ComposeKind {
         match self {
             ComposeKind::Comment { .. } => "Reply",
             ComposeKind::Edit { .. } => "Edit",
-            ComposeKind::SubmitText { .. } => "New story",
         }
     }
 
@@ -377,32 +374,27 @@ impl ComposeKind {
         match self {
             ComposeKind::Comment { .. } => "post",
             ComposeKind::Edit { .. } => "save",
-            ComposeKind::SubmitText { .. } => "submit",
         }
     }
 }
 
-#[derive(Debug, Clone)]
-struct ComposeState {
-    kind: ComposeKind,
-    context: ComposeContext,
+#[derive(Debug, Clone, Default)]
+struct Editor {
     text: String,
     cursor: usize,
-    scroll: usize,
-    submitting: bool,
-    error: Option<String>,
-    restored: bool,
 }
 
-impl ComposeState {
+impl Editor {
+    fn new(text: String) -> Self {
+        let cursor = text.chars().count();
+        Self { text, cursor }
+    }
+
     fn chars(&self) -> Vec<char> {
         self.text.chars().collect()
     }
 
     fn insert(&mut self, text: &str) {
-        if self.submitting {
-            return;
-        }
         let normalized = text
             .replace("\r\n", "\n")
             .replace('\r', "\n")
@@ -412,11 +404,21 @@ impl ComposeState {
         chars.splice(index..index, normalized.chars());
         self.text = chars.into_iter().collect();
         self.cursor = index + normalized.chars().count();
-        self.error = None;
+    }
+
+    fn insert_single_line(&mut self, text: &str) {
+        let cleaned: String = text
+            .chars()
+            .map(|character| match character {
+                '\n' | '\r' => ' ',
+                other => other,
+            })
+            .collect();
+        self.insert(&cleaned);
     }
 
     fn backspace(&mut self) {
-        if self.submitting || self.cursor == 0 {
+        if self.cursor == 0 {
             return;
         }
         let mut chars = self.chars();
@@ -424,18 +426,13 @@ impl ComposeState {
         chars.remove(index - 1);
         self.text = chars.into_iter().collect();
         self.cursor = index - 1;
-        self.error = None;
     }
 
     fn delete_forward(&mut self) {
-        if self.submitting {
-            return;
-        }
         let mut chars = self.chars();
         if self.cursor < chars.len() {
             chars.remove(self.cursor);
             self.text = chars.into_iter().collect();
-            self.error = None;
         }
     }
 
@@ -518,6 +515,78 @@ impl ComposeState {
 }
 
 #[derive(Debug, Clone)]
+struct ComposeState {
+    kind: ComposeKind,
+    context: ComposeContext,
+    editor: Editor,
+    scroll: usize,
+    submitting: bool,
+    error: Option<String>,
+    restored: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SubmitField {
+    Title,
+    Url,
+    Text,
+}
+
+#[derive(Debug, Clone)]
+struct SubmitState {
+    title: Editor,
+    url: Editor,
+    text: Editor,
+    focus: SubmitField,
+    scroll: usize,
+    submitting: bool,
+    error: Option<String>,
+    restored: bool,
+}
+
+impl SubmitState {
+    fn new() -> Self {
+        Self {
+            title: Editor::default(),
+            url: Editor::default(),
+            text: Editor::default(),
+            focus: SubmitField::Title,
+            scroll: 0,
+            submitting: false,
+            error: None,
+            restored: false,
+        }
+    }
+
+    fn editor_mut(&mut self) -> &mut Editor {
+        match self.focus {
+            SubmitField::Title => &mut self.title,
+            SubmitField::Url => &mut self.url,
+            SubmitField::Text => &mut self.text,
+        }
+    }
+
+    fn next_field(&mut self, delta: isize) {
+        let index = match self.focus {
+            SubmitField::Title => 0,
+            SubmitField::Url => 1,
+            SubmitField::Text => 2,
+        };
+        self.focus = match (index + delta).rem_euclid(3) {
+            0 => SubmitField::Title,
+            1 => SubmitField::Url,
+            _ => SubmitField::Text,
+        };
+    }
+
+    fn has_content(&self) -> bool {
+        !self.title.trimmed().is_empty()
+            || !self.url.trimmed().is_empty()
+            || !self.text.trimmed().is_empty()
+    }
+}
+
+#[derive(Debug, Clone)]
 enum Overlay {
     Help,
     Commands {
@@ -539,6 +608,7 @@ enum Overlay {
         kind: ConfirmKind,
     },
     Compose(ComposeState),
+    Submit(SubmitState),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -577,6 +647,7 @@ enum Event {
         result: Result<()>,
     },
     Action(Result<String>),
+    StorySubmitted(Result<Option<ItemId>>),
     User(Result<Option<UserSession>>),
 }
 
@@ -748,6 +819,25 @@ impl App {
                     }
                 }
             }
+            Event::StorySubmitted(result) => match result {
+                Ok(id) => {
+                    self.drafts.remove(SUBMIT_DRAFT_KEY);
+                    save_drafts(&self.drafts).ok();
+                    self.overlay = None;
+                    let message = match id {
+                        Some(id) => format!("Submitted: https://news.ycombinator.com/item?id={id}"),
+                        None => "Submitted to Hacker News".into(),
+                    };
+                    self.toast(message, SUCCESS);
+                    self.load_source(true);
+                }
+                Err(error) => {
+                    if let Some(Overlay::Submit(form)) = self.overlay.as_mut() {
+                        form.submitting = false;
+                        form.error = Some(error.to_string());
+                    }
+                }
+            },
             Event::User(result) => {
                 self.user = result.unwrap_or(None);
             }
@@ -819,6 +909,8 @@ impl App {
                             DraftRecord {
                                 text,
                                 saved_at: Utc::now(),
+                                title: None,
+                                url: None,
                             },
                         );
                         save_drafts(&self.drafts).ok();
@@ -1198,12 +1290,10 @@ impl App {
         let draft = self.drafts.get(&key).map(|record| record.text.clone());
         let restored = draft.is_some();
         let text = draft.or(initial).unwrap_or_default();
-        let cursor = text.chars().count();
         self.overlay = Some(Overlay::Compose(ComposeState {
             kind,
             context,
-            text,
-            cursor,
+            editor: Editor::new(text),
             scroll: 0,
             submitting: false,
             error: None,
@@ -1235,20 +1325,22 @@ impl App {
         if compose.submitting {
             return;
         }
-        if compose.trimmed().is_empty() {
+        if compose.editor.trimmed().is_empty() {
             compose.error = Some("Write something first".into());
             return;
         }
         compose.submitting = true;
         compose.error = None;
         let kind = compose.kind.clone();
-        let text = compose.text.clone();
+        let text = compose.editor.text.clone();
         let key = kind.key();
         self.drafts.insert(
             key.clone(),
             DraftRecord {
                 text: text.clone(),
                 saved_at: Utc::now(),
+                title: None,
+                url: None,
             },
         );
         save_drafts(&self.drafts).ok();
@@ -1291,19 +1383,6 @@ impl App {
                     });
                 });
             }
-            ComposeKind::SubmitText { title } => {
-                tokio::spawn(async move {
-                    let submission = StorySubmission::new(title, None, Some(text));
-                    let result = match submission {
-                        Ok(submission) => client.submit_story(&submission).await.map(|id| {
-                            id.map(|id| format!("Submitted: {id}"))
-                                .unwrap_or_else(|| "Submitted".into())
-                        }),
-                        Err(error) => Err(error),
-                    };
-                    let _ = tx.send(Event::Action(result));
-                });
-            }
         }
         let _ = key;
     }
@@ -1316,14 +1395,16 @@ impl App {
             return;
         }
         let key = compose.kind.key();
-        if compose.trimmed().is_empty() {
+        if compose.editor.trimmed().is_empty() {
             self.drafts.remove(&key);
         } else {
             self.drafts.insert(
                 key,
                 DraftRecord {
-                    text: compose.text.clone(),
+                    text: compose.editor.text.clone(),
                     saved_at: Utc::now(),
+                    title: None,
+                    url: None,
                 },
             );
         }
@@ -1334,13 +1415,28 @@ impl App {
 
     fn save_active_draft(&mut self) {
         if let Some(Overlay::Compose(compose)) = &self.overlay
-            && !compose.trimmed().is_empty()
+            && !compose.editor.trimmed().is_empty()
         {
             self.drafts.insert(
                 compose.kind.key(),
                 DraftRecord {
-                    text: compose.text.clone(),
+                    text: compose.editor.text.clone(),
                     saved_at: Utc::now(),
+                    title: None,
+                    url: None,
+                },
+            );
+            save_drafts(&self.drafts).ok();
+        } else if let Some(Overlay::Submit(form)) = &self.overlay
+            && form.has_content()
+        {
+            self.drafts.insert(
+                SUBMIT_DRAFT_KEY.into(),
+                DraftRecord {
+                    text: form.text.text.clone(),
+                    saved_at: Utc::now(),
+                    title: Some(form.title.text.clone()).filter(|title| !title.trim().is_empty()),
+                    url: Some(form.url.text.clone()).filter(|url| !url.trim().is_empty()),
                 },
             );
             save_drafts(&self.drafts).ok();
@@ -1350,6 +1446,8 @@ impl App {
     fn close_overlay(&mut self) {
         if matches!(self.overlay, Some(Overlay::Compose(_))) {
             self.cancel_compose();
+        } else if matches!(self.overlay, Some(Overlay::Submit(_))) {
+            self.cancel_submit();
         } else {
             self.overlay = None;
         }
@@ -1390,6 +1488,7 @@ impl App {
         for (index, source) in self.sources.iter().enumerate() {
             commands.push((format!("Go to {}", source.label()), Command::Source(index)));
         }
+        commands.push(("Submit a story".into(), Command::Submit));
         commands.push(("Search Hacker News".into(), Command::Search));
         commands.push(("Refresh".into(), Command::Refresh));
         commands.push(("Keyboard help".into(), Command::Help));
@@ -1426,6 +1525,7 @@ impl App {
         self.overlay = None;
         match command {
             Command::Source(index) => self.select_source(*index),
+            Command::Submit => self.open_submit(),
             Command::Search => self.open_search(),
             Command::Refresh => {
                 self.load_source(true);
@@ -1578,6 +1678,7 @@ impl App {
 #[derive(Debug, Clone, Copy)]
 enum Command {
     Source(usize),
+    Submit,
     Search,
     Refresh,
     Login,
@@ -1729,10 +1830,10 @@ impl App {
             },
             TermEvent::Resize(_, _) => {}
             TermEvent::Paste(text) => {
-                if let Some(Overlay::Compose(_)) = &mut self.overlay
-                    && let Some(Overlay::Compose(compose)) = &mut self.overlay
-                {
-                    compose.insert(&text);
+                if let Some(Overlay::Compose(compose)) = &mut self.overlay {
+                    compose.editor.insert(&text);
+                } else if let Some(Overlay::Submit(form)) = &mut self.overlay {
+                    form.editor_mut().insert(&text);
                 }
             }
             _ => {}
@@ -1797,7 +1898,7 @@ impl App {
             KeyCode::Char('c') => self.open_compose_comment(),
             KeyCode::Char('e') => self.open_compose_edit(),
             KeyCode::Char('d') => self.request_delete(),
-            KeyCode::Char('s') => self.open_compose_submit(),
+            KeyCode::Char('s') => self.open_submit(),
             KeyCode::Char('o') => self.open_url(),
             KeyCode::Char('y') => self.copy_url(),
             KeyCode::Char('[') => self.cycle_source(-1),
@@ -1813,25 +1914,98 @@ impl App {
         }
     }
 
-    fn open_compose_submit(&mut self) {
-        let Some(target) = self.target_entry() else {
-            self.toast("Select a story first", WARNING);
+    fn open_submit(&mut self) {
+        let mut form = SubmitState::new();
+        if let Some(draft) = self.drafts.get(SUBMIT_DRAFT_KEY).cloned() {
+            form.title = Editor::new(draft.title.unwrap_or_default());
+            form.url = Editor::new(draft.url.unwrap_or_default());
+            form.text = Editor::new(draft.text);
+            form.restored = form.has_content();
+        }
+        self.overlay = Some(Overlay::Submit(form));
+    }
+
+    fn cancel_submit(&mut self) {
+        let Some(Overlay::Submit(form)) = self.overlay.as_ref() else {
             return;
         };
-        let context = ComposeContext {
-            label: "New story".into(),
-            author: None,
-            story_title: target.title.clone(),
-            excerpt: None,
-            target: target.id,
+        if form.submitting {
+            return;
+        }
+        let draft = if form.has_content() {
+            Some(DraftRecord {
+                text: form.text.text.clone(),
+                saved_at: Utc::now(),
+                title: Some(form.title.text.clone()).filter(|title| !title.trim().is_empty()),
+                url: Some(form.url.text.clone()).filter(|url| !url.trim().is_empty()),
+            })
+        } else {
+            None
         };
-        self.open_compose(
-            ComposeKind::SubmitText {
-                title: target.display_title(),
+        if let Some(draft) = draft {
+            self.drafts.insert(SUBMIT_DRAFT_KEY.into(), draft);
+        } else {
+            self.drafts.remove(SUBMIT_DRAFT_KEY);
+        }
+        save_drafts(&self.drafts).ok();
+        self.overlay = None;
+        self.toast("Draft saved", WARNING);
+    }
+
+    fn submit_story_form(&mut self) {
+        let Some(Overlay::Submit(form)) = self.overlay.as_mut() else {
+            return;
+        };
+        if form.submitting {
+            return;
+        }
+        let title = form.title.text.trim().to_string();
+        let url = form.url.text.trim().to_string();
+        let text = form.text.text.trim().to_string();
+        if title.is_empty() {
+            form.error = Some("Title is required".into());
+            form.focus = SubmitField::Title;
+            return;
+        }
+        if title.chars().count() > 80 {
+            form.error = Some("Titles are limited to 80 characters".into());
+            form.focus = SubmitField::Title;
+            return;
+        }
+        let url = if url.is_empty() { None } else { Some(url) };
+        let text = if text.is_empty() { None } else { Some(text) };
+        let submission = match StorySubmission::new(title.clone(), url.clone(), text.clone()) {
+            Ok(submission) => submission,
+            Err(error) => {
+                form.error = Some(error.to_string());
+                form.focus = if form.url.text.trim().is_empty() && text.is_none() {
+                    SubmitField::Text
+                } else if !form.url.text.trim().is_empty() {
+                    SubmitField::Url
+                } else {
+                    SubmitField::Title
+                };
+                return;
+            }
+        };
+        form.submitting = true;
+        form.error = None;
+        self.drafts.insert(
+            SUBMIT_DRAFT_KEY.into(),
+            DraftRecord {
+                text: text.clone().unwrap_or_default(),
+                saved_at: Utc::now(),
+                title: Some(title.clone()),
+                url: url.clone(),
             },
-            context,
-            None,
         );
+        save_drafts(&self.drafts).ok();
+        let client = self.client.clone();
+        let tx = self.tx.clone();
+        tokio::spawn(async move {
+            let result = client.submit_story(&submission).await;
+            let _ = tx.send(Event::StorySubmitted(result));
+        });
     }
 
     fn handle_overlay_key(&mut self, key: KeyEvent) {
@@ -1933,6 +2107,52 @@ impl App {
                 KeyCode::Esc | KeyCode::Char('n') | KeyCode::Char('N') => self.overlay = None,
                 _ => {}
             },
+            Some(Overlay::Submit(_)) => {
+                if control && key.code == KeyCode::Char('s') {
+                    self.submit_story_form();
+                    return;
+                }
+                if key.code == KeyCode::Esc {
+                    self.cancel_submit();
+                    return;
+                }
+                let Some(Overlay::Submit(form)) = self.overlay.as_mut() else {
+                    return;
+                };
+                if form.submitting {
+                    return;
+                }
+                match key.code {
+                    KeyCode::Tab => form.next_field(1),
+                    KeyCode::BackTab => form.next_field(-1),
+                    KeyCode::Enter => {
+                        if form.focus == SubmitField::Text {
+                            form.text.insert("\n");
+                        } else {
+                            form.next_field(1);
+                        }
+                    }
+                    KeyCode::Backspace => form.editor_mut().backspace(),
+                    KeyCode::Delete => form.editor_mut().delete_forward(),
+                    KeyCode::Left => form.editor_mut().move_left(),
+                    KeyCode::Right => form.editor_mut().move_right(),
+                    KeyCode::Up => form.editor_mut().move_up(),
+                    KeyCode::Down => form.editor_mut().move_down(),
+                    KeyCode::Home => form.editor_mut().move_home(),
+                    KeyCode::End => form.editor_mut().move_end(),
+                    KeyCode::PageUp => form.editor_mut().page(true),
+                    KeyCode::PageDown => form.editor_mut().page(false),
+                    KeyCode::Char(character) => {
+                        form.error = None;
+                        if form.focus == SubmitField::Text {
+                            form.text.insert(&character.to_string());
+                        } else {
+                            form.editor_mut().insert_single_line(&character.to_string());
+                        }
+                    }
+                    _ => {}
+                }
+            }
             Some(Overlay::Compose(_)) => {
                 if control && key.code == KeyCode::Char('s') {
                     self.submit_compose();
@@ -1942,67 +2162,67 @@ impl App {
                     KeyCode::Esc => self.cancel_compose(),
                     KeyCode::Enter => {
                         if let Some(Overlay::Compose(compose)) = &mut self.overlay {
-                            compose.insert("\n");
+                            compose.editor.insert("\n");
                         }
                     }
                     KeyCode::Tab => {
                         if let Some(Overlay::Compose(compose)) = &mut self.overlay {
-                            compose.insert("  ");
+                            compose.editor.insert("  ");
                         }
                     }
                     KeyCode::Backspace => {
                         if let Some(Overlay::Compose(compose)) = &mut self.overlay {
-                            compose.backspace();
+                            compose.editor.backspace();
                         }
                     }
                     KeyCode::Delete => {
                         if let Some(Overlay::Compose(compose)) = &mut self.overlay {
-                            compose.delete_forward();
+                            compose.editor.delete_forward();
                         }
                     }
                     KeyCode::Left => {
                         if let Some(Overlay::Compose(compose)) = &mut self.overlay {
-                            compose.move_left();
+                            compose.editor.move_left();
                         }
                     }
                     KeyCode::Right => {
                         if let Some(Overlay::Compose(compose)) = &mut self.overlay {
-                            compose.move_right();
+                            compose.editor.move_right();
                         }
                     }
                     KeyCode::Up => {
                         if let Some(Overlay::Compose(compose)) = &mut self.overlay {
-                            compose.move_up();
+                            compose.editor.move_up();
                         }
                     }
                     KeyCode::Down => {
                         if let Some(Overlay::Compose(compose)) = &mut self.overlay {
-                            compose.move_down();
+                            compose.editor.move_down();
                         }
                     }
                     KeyCode::Home => {
                         if let Some(Overlay::Compose(compose)) = &mut self.overlay {
-                            compose.move_home();
+                            compose.editor.move_home();
                         }
                     }
                     KeyCode::End => {
                         if let Some(Overlay::Compose(compose)) = &mut self.overlay {
-                            compose.move_end();
+                            compose.editor.move_end();
                         }
                     }
                     KeyCode::PageUp => {
                         if let Some(Overlay::Compose(compose)) = &mut self.overlay {
-                            compose.page(true);
+                            compose.editor.page(true);
                         }
                     }
                     KeyCode::PageDown => {
                         if let Some(Overlay::Compose(compose)) = &mut self.overlay {
-                            compose.page(false);
+                            compose.editor.page(false);
                         }
                     }
                     KeyCode::Char(character) => {
                         if let Some(Overlay::Compose(compose)) = &mut self.overlay {
-                            compose.insert(&character.to_string());
+                            compose.editor.insert(&character.to_string());
                         }
                     }
                     _ => {}
@@ -2357,6 +2577,7 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
         Some(Overlay::Login { .. }) => ("LOGIN", "tab switch · enter log in · esc"),
         Some(Overlay::Confirm { .. }) => ("CONFIRM", "y confirm · n cancel"),
         Some(Overlay::Compose(_)) => ("COMPOSE", "ctrl-s post · esc save draft"),
+        Some(Overlay::Submit(_)) => ("SUBMIT", "tab field · ctrl-s post · esc save draft"),
         None => match app.focus {
             Focus::Sidebar => ("FEEDS", "j/k feed · enter open · tab next"),
             Focus::Detail => (
@@ -2434,7 +2655,7 @@ fn draw_overlay(frame: &mut Frame, app: &mut App, body: Rect) {
                 ("H / U", "hide / unhide"),
                 ("!", "flag"),
                 ("c / e / d", "comment / edit / delete"),
-                ("s", "submit text story"),
+                ("s", "submit a story"),
                 ("L", "log in"),
                 ("?", "this help"),
                 ("q / ctrl-c", "quit"),
@@ -2576,7 +2797,212 @@ fn draw_overlay(frame: &mut Frame, app: &mut App, body: Rect) {
         Overlay::Compose(compose) => {
             draw_compose(frame, app, compose, rect);
         }
+        Overlay::Submit(form) => {
+            draw_submit(frame, app, form, rect);
+        }
     }
+}
+
+fn single_line_field(
+    label: &str,
+    editor: &Editor,
+    focused: bool,
+    width: usize,
+    placeholder: &str,
+) -> Line<'static> {
+    let label_style = if focused {
+        Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)
+    } else {
+        muted()
+    };
+    let mut spans = vec![Span::styled(format!("{label:<8}"), label_style)];
+    if editor.text.is_empty() && !focused {
+        spans.push(Span::styled(placeholder.to_string(), muted()));
+        return Line::from(spans);
+    }
+    let chars = editor.chars();
+    let cursor = editor.cursor.min(chars.len());
+    let width = width.max(1);
+    let start = if focused {
+        cursor.saturating_sub(width.saturating_sub(1))
+    } else {
+        0
+    };
+    let mut used = 0usize;
+    let mut index = start;
+    while index < chars.len() && used < width {
+        let character = chars[index];
+        let character_width = unicode_width::UnicodeWidthChar::width(character).unwrap_or(1);
+        if used + character_width > width {
+            break;
+        }
+        let style = if focused && index == cursor {
+            Style::default().add_modifier(Modifier::REVERSED)
+        } else {
+            Style::default()
+        };
+        spans.push(Span::styled(character.to_string(), style));
+        used += character_width;
+        index += 1;
+    }
+    if focused && cursor >= chars.len() {
+        spans.push(Span::styled(
+            " ",
+            Style::default().add_modifier(Modifier::REVERSED),
+        ));
+    }
+    Line::from(spans)
+}
+
+fn draw_submit(frame: &mut Frame, app: &mut App, form: &SubmitState, rect: Rect) {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(muted())
+        .title(Span::styled(
+            " New story ",
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        ));
+    let inner = block.inner(rect);
+    frame.render_widget(block, rect);
+    if inner.height < 4 || inner.width < 16 {
+        return;
+    }
+
+    let field_width = inner.width.saturating_sub(8) as usize;
+    let mut lines = Vec::new();
+    lines.push(single_line_field(
+        "Title",
+        &form.title,
+        form.focus == SubmitField::Title,
+        field_width,
+        "A clear, descriptive title",
+    ));
+    lines.push(single_line_field(
+        "Link",
+        &form.url,
+        form.focus == SubmitField::Url,
+        field_width,
+        "https://example.com (optional)",
+    ));
+    lines.push(Line::from(Span::styled(
+        "        Link posts use the link. Text posts leave it empty.",
+        muted(),
+    )));
+    lines.push(Line::from(Span::styled(
+        "─".repeat(inner.width as usize),
+        muted(),
+    )));
+    lines.push(Line::from(vec![
+        Span::styled(
+            "Text    ",
+            if form.focus == SubmitField::Text {
+                Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)
+            } else {
+                muted()
+            },
+        ),
+        Span::styled("description or context (optional)", muted()),
+    ]));
+
+    let body_height = (inner.height as usize)
+        .saturating_sub(lines.len() + 2)
+        .max(1);
+    let layout = compose_layout(&form.text.text, inner.width as usize, form.text.cursor);
+    let mut scroll = form.scroll.min(layout.lines.len().saturating_sub(1));
+    if form.focus == SubmitField::Text {
+        if layout.cursor_line < scroll {
+            scroll = layout.cursor_line;
+        } else if layout.cursor_line >= scroll + body_height {
+            scroll = layout.cursor_line - body_height + 1;
+        }
+    }
+    if let Some(Overlay::Submit(current)) = &mut app.overlay {
+        current.scroll = scroll;
+    }
+    let chars = form.text.chars();
+    if form.text.text.is_empty() && form.focus != SubmitField::Text {
+        lines.push(Line::from(Span::styled(
+            "        Write a description or context (optional)",
+            muted(),
+        )));
+    } else {
+        for (offset, (start, end, text)) in layout
+            .lines
+            .iter()
+            .enumerate()
+            .skip(scroll)
+            .take(body_height)
+        {
+            let focused_line = form.focus == SubmitField::Text && offset == layout.cursor_line;
+            if focused_line {
+                let cursor = form.text.cursor.min(chars.len());
+                let local_start = cursor.saturating_sub(*start).min(end - start);
+                let prefix: String = chars[*start..*start + local_start].iter().collect();
+                let mut spans = vec![
+                    Span::styled("        ", Style::default()),
+                    Span::styled(prefix, Style::default()),
+                ];
+                if cursor < chars.len() && chars[cursor] != '\n' {
+                    spans.push(Span::styled(
+                        chars[cursor].to_string(),
+                        Style::default().add_modifier(Modifier::REVERSED),
+                    ));
+                    let rest: String = chars[cursor + 1..*end].iter().collect();
+                    spans.push(Span::styled(rest, Style::default()));
+                } else {
+                    spans.push(Span::styled(
+                        " ",
+                        Style::default().add_modifier(Modifier::REVERSED),
+                    ));
+                }
+                lines.push(Line::from(spans));
+            } else {
+                lines.push(Line::from(vec![
+                    Span::styled("        ", Style::default()),
+                    Span::styled(text.clone(), Style::default()),
+                ]));
+            }
+        }
+    }
+
+    if form.submitting {
+        lines.push(Line::from(Span::styled(
+            format!("{} submitting…", SPINNER[app.spinner]),
+            Style::default().fg(ACCENT),
+        )));
+    } else if let Some(error) = &form.error {
+        lines.push(Line::from(Span::styled(
+            error.clone(),
+            Style::default().fg(ERROR),
+        )));
+    } else {
+        let link = if form.url.trimmed().is_empty() {
+            "Link empty · text post"
+        } else {
+            "Link set"
+        };
+        lines.push(Line::from(Span::styled(
+            format!(
+                "Title {}/80 · {} · Text {} chars",
+                form.title.text.chars().count(),
+                link,
+                form.text.text.chars().count()
+            ),
+            muted(),
+        )));
+    }
+    if form.restored {
+        lines.push(Line::from(Span::styled(
+            "Draft restored · tab next field · ctrl-s submit · esc save draft",
+            Style::default().fg(WARNING),
+        )));
+    } else {
+        lines.push(Line::from(Span::styled(
+            "tab next field · ctrl-s submit · esc save draft",
+            muted(),
+        )));
+    }
+    frame.render_widget(Paragraph::new(lines), inner);
 }
 
 fn draw_compose(frame: &mut Frame, app: &mut App, compose: &ComposeState, rect: Rect) {
@@ -2624,7 +3050,11 @@ fn draw_compose(frame: &mut Frame, app: &mut App, compose: &ComposeState, rect: 
 
     let status_y = inner.height.saturating_sub(2) as usize;
     let text_height = status_y.saturating_sub(lines.len()).max(1);
-    let layout = compose_layout(&compose.text, inner.width as usize, compose.cursor);
+    let layout = compose_layout(
+        &compose.editor.text,
+        inner.width as usize,
+        compose.editor.cursor,
+    );
     let mut scroll = compose.scroll.min(layout.lines.len().saturating_sub(1));
     if layout.cursor_line < scroll {
         scroll = layout.cursor_line;
@@ -2634,7 +3064,7 @@ fn draw_compose(frame: &mut Frame, app: &mut App, compose: &ComposeState, rect: 
     if let Some(Overlay::Compose(current)) = &mut app.overlay {
         current.scroll = scroll;
     }
-    let chars = compose.chars();
+    let chars = compose.editor.chars();
     for (offset, (start, end, text)) in layout
         .lines
         .iter()
@@ -2645,7 +3075,7 @@ fn draw_compose(frame: &mut Frame, app: &mut App, compose: &ComposeState, rect: 
         let _ = (start, end);
         let mut spans = Vec::new();
         if offset == layout.cursor_line {
-            let cursor = compose.cursor.min(chars.len());
+            let cursor = compose.editor.cursor.min(chars.len());
             let line_start = *start;
             let line_end = *end;
             let local_start = cursor.saturating_sub(line_start).min(line_end - line_start);
@@ -2684,7 +3114,7 @@ fn draw_compose(frame: &mut Frame, app: &mut App, compose: &ComposeState, rect: 
         )));
     } else {
         lines.push(Line::from(Span::styled(
-            format!("{} chars", compose.text.chars().count()),
+            format!("{} chars", compose.editor.text.chars().count()),
             muted(),
         )));
     }
@@ -2903,5 +3333,38 @@ mod tests {
         let layout = compose_layout("abcdefghij", 4, 0);
         assert!(layout.lines.len() > 1);
         assert_eq!(layout.cursor_line, 0);
+    }
+
+    #[test]
+    fn editor_edits_at_the_cursor() {
+        let mut editor = Editor::new("abc".into());
+        editor.insert("d");
+        assert_eq!(editor.text, "abcd");
+        editor.move_left();
+        editor.insert("X");
+        assert_eq!(editor.text, "abcXd");
+        editor.backspace();
+        assert_eq!(editor.text, "abcd");
+        editor.delete_forward();
+        assert_eq!(editor.text, "abc");
+    }
+
+    #[test]
+    fn single_line_editor_replaces_newlines() {
+        let mut editor = Editor::default();
+        editor.insert_single_line("a\nb\tc");
+        assert_eq!(editor.text, "a b    c");
+    }
+
+    #[test]
+    fn submit_form_cycles_fields_and_tracks_content() {
+        let mut form = SubmitState::new();
+        assert!(!form.has_content());
+        form.next_field(1);
+        assert_eq!(form.focus, SubmitField::Url);
+        form.next_field(-1);
+        assert_eq!(form.focus, SubmitField::Title);
+        form.title.insert("hello");
+        assert!(form.has_content());
     }
 }

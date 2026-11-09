@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-11-09
+
+### Added
+
+- A real story submission form in the TUI: separate Title, Link, and Text fields with `Tab`/`Shift-Tab` navigation.
+- Interactive `hn submit`: prompts for title and link, opens `$VISUAL`/`$EDITOR` for text posts, and resumes drafts with `--use-draft`.
+- Submission drafts store title, link, text, and timestamp, and survive failed posts and quitting the TUI.
+- Link normalization (`example.com/post` → `https://example.com/post`) and validation for HTTP(S) links.
+- Title validation with the Hacker News 80-character limit.
+
+### Changed
+
+- `hn submit` no longer requires `--title`; in a terminal it guides you through the fields.
+- `hn drafts` now shows submission titles, links, and a resume hint.
+- The TUI command palette includes "Submit a story".
+
 ## [0.3.1] - 2026-11-09
 
 ### Fixed
@@ -69,6 +85,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Session storage with `0600` permissions and no password persistence.
 - Homebrew tap, install script, universal macOS release assets, and CI.
 
+[0.4.0]: https://github.com/kaushalvivek/hn-cli/releases/tag/v0.4.0
 [0.3.1]: https://github.com/kaushalvivek/hn-cli/releases/tag/v0.3.1
 [0.3.0]: https://github.com/kaushalvivek/hn-cli/releases/tag/v0.3.0
 [0.2.1]: https://github.com/kaushalvivek/hn-cli/releases/tag/v0.2.1
