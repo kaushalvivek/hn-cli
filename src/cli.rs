@@ -22,16 +22,91 @@ use crate::site::{LoginCredentials, SiteFeedEntry, SiteFeedPage, html_to_text};
     long_about = None
 )]
 pub struct Cli {
+    // Clap's default bool parser accepts only the strings "true" and "false".
+    // `HN_JSON=1` (the documented spelling) and an empty `HN_JSON` aborted
+    // every command before it ran. Empty is unset. Falsey spellings stay off.
+    // Any other non-empty value enables JSON and does not error.
     /// Emit machine-readable JSON on stdout.
-    #[arg(long, global = true, env = "HN_JSON")]
+    #[arg(long, global = true, env = "HN_JSON", value_parser = JsonEnvParser)]
     pub json: bool,
 
+    // https://no-color.org/ — any non-empty NO_COLOR disables color, and an
+    // empty value is the same as unset. That is not a boolean, so clap's
+    // default parser must not see the variable (`NO_COLOR=1` exited first).
     /// Disable ANSI color in human output.
-    #[arg(long, global = true, env = "NO_COLOR")]
+    #[arg(long, global = true, env = "NO_COLOR", value_parser = NoColorEnvParser)]
     pub no_color: bool,
 
     #[command(subcommand)]
     pub command: Option<Command>,
+}
+
+/// `NO_COLOR`: any non-empty value disables color. Empty is unset.
+#[derive(Clone, Copy)]
+struct NoColorEnvParser;
+
+impl clap::builder::TypedValueParser for NoColorEnvParser {
+    type Value = bool;
+
+    fn parse_ref(
+        &self,
+        cmd: &clap::Command,
+        arg: Option<&clap::Arg>,
+        value: &std::ffi::OsStr,
+    ) -> std::result::Result<bool, clap::Error> {
+        // Direct calls follow the env rule. Clap itself passes a source.
+        self.parse_ref_(cmd, arg, value, clap::parser::ValueSource::EnvVariable)
+    }
+
+    fn parse_ref_(
+        &self,
+        _cmd: &clap::Command,
+        _arg: Option<&clap::Arg>,
+        value: &std::ffi::OsStr,
+        source: clap::parser::ValueSource,
+    ) -> std::result::Result<bool, clap::Error> {
+        // SetTrue's implicit default is the string "false". That means the
+        // flag was not passed. It must not be read as NO_COLOR=false, which
+        // is a non-empty value and does disable color.
+        if source == clap::parser::ValueSource::DefaultValue {
+            return Ok(false);
+        }
+        Ok(!value.is_empty())
+    }
+}
+
+/// `HN_JSON`: empty is unset, falsey spellings are off, everything else is on.
+#[derive(Clone, Copy)]
+struct JsonEnvParser;
+
+impl clap::builder::TypedValueParser for JsonEnvParser {
+    type Value = bool;
+
+    fn parse_ref(
+        &self,
+        _cmd: &clap::Command,
+        _arg: Option<&clap::Arg>,
+        value: &std::ffi::OsStr,
+    ) -> std::result::Result<bool, clap::Error> {
+        Ok(json_env_enables(value))
+    }
+}
+
+fn json_env_enables(value: &std::ffi::OsStr) -> bool {
+    let Some(text) = value.to_str() else {
+        return !value.is_empty();
+    };
+    if text.is_empty() {
+        return false;
+    }
+    !matches!(
+        text.to_ascii_lowercase().as_str(),
+        "0" | "false" | "no" | "n" | "off" | "f"
+    )
+}
+
+fn terminal_color_enabled(no_color: bool, stdout_is_terminal: bool) -> bool {
+    !no_color && stdout_is_terminal
 }
 
 #[derive(Subcommand, Debug)]
@@ -335,9 +410,9 @@ impl Out {
     fn new(cli: &Cli) -> Self {
         Self {
             json: cli.json,
-            color: !cli.no_color
-                && std::io::stdout().is_terminal()
-                && std::env::var_os("NO_COLOR").is_none(),
+            // `no_color` already includes `--no-color` and a non-empty NO_COLOR.
+            // An empty NO_COLOR leaves the flag unset, per no-color.org.
+            color: terminal_color_enabled(cli.no_color, std::io::stdout().is_terminal()),
         }
     }
 
@@ -1642,7 +1717,7 @@ fn capabilities() -> serde_json::Value {
         },
         "environment": [
             {"name": "HN_CONFIG_DIR", "description": "Config directory (default ~/.config/hn)"},
-            {"name": "HN_JSON", "description": "Same as --json"},
+            {"name": "HN_JSON", "description": "Same as --json (1/true enable, 0/false disable, empty is unset)"},
             {"name": "HN_PASSWORD", "description": "Password for non-interactive login; prefer --password-stdin"},
             {"name": "HN_INSTALL_DIR", "description": "Install directory used by install.sh"},
             {"name": "HN_SITE_URL", "description": "Override the Hacker News HTML base URL (testing)"},
@@ -1650,7 +1725,7 @@ fn capabilities() -> serde_json::Value {
             {"name": "HN_ALGOLIA_URL", "description": "Override the Algolia base URL (testing)"},
             {"name": "VISUAL", "description": "Editor used by interactive comment/edit"},
             {"name": "EDITOR", "description": "Fallback editor"},
-            {"name": "NO_COLOR", "description": "Disable color"}
+            {"name": "NO_COLOR", "description": "Disable color when set to any non-empty value; empty is unset"}
         ],
         "commands": [
             {"name": "front", "auth": false, "args": ["--limit", "--page"], "output": "SiteFeedPage"},
@@ -1695,6 +1770,8 @@ fn capabilities() -> serde_json::Value {
 
 #[cfg(test)]
 mod tests {
+    use clap::builder::TypedValueParser;
+
     use super::*;
 
     #[test]
@@ -1711,5 +1788,111 @@ mod tests {
         assert_eq!(value["name"], "hn");
         assert!(value["commands"].as_array().unwrap().len() > 20);
         assert_eq!(value["json_errors"]["stream"], "stderr");
+    }
+
+    fn parse_flag(parser: impl clap::builder::TypedValueParser<Value = bool>, value: &str) -> bool {
+        parser
+            .parse_ref(&clap::Command::new("hn"), None, std::ffi::OsStr::new(value))
+            .unwrap_or_else(|error| panic!("env value {value:?} should not error: {error}"))
+    }
+
+    #[test]
+    fn no_color_env_accepts_any_non_empty_value_and_empty_is_unset() {
+        for value in ["1", "true", "yes", "on", "anything", "false", "0", " "] {
+            assert!(
+                parse_flag(NoColorEnvParser, value),
+                "NO_COLOR={value:?} should disable color"
+            );
+        }
+        assert!(!parse_flag(NoColorEnvParser, ""));
+    }
+
+    #[test]
+    fn no_color_flag_default_is_off_even_though_the_sentinel_is_false() {
+        let cmd = clap::Command::new("hn");
+        let false_value = std::ffi::OsStr::new("false");
+        assert!(
+            !NoColorEnvParser
+                .parse_ref_(
+                    &cmd,
+                    None,
+                    false_value,
+                    clap::parser::ValueSource::DefaultValue
+                )
+                .unwrap()
+        );
+        assert!(
+            NoColorEnvParser
+                .parse_ref_(
+                    &cmd,
+                    None,
+                    false_value,
+                    clap::parser::ValueSource::EnvVariable
+                )
+                .unwrap()
+        );
+        assert!(
+            NoColorEnvParser
+                .parse_ref_(
+                    &cmd,
+                    None,
+                    std::ffi::OsStr::new("true"),
+                    clap::parser::ValueSource::CommandLine
+                )
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn hn_json_env_accepts_one_and_other_spellings_without_error() {
+        for value in ["1", "true", "TRUE", "yes", "on", "y", "t", "anything"] {
+            assert!(
+                parse_flag(JsonEnvParser, value),
+                "HN_JSON={value:?} should enable JSON"
+            );
+        }
+        for value in ["0", "false", "FALSE", "no", "off", "n", "f", ""] {
+            assert!(
+                !parse_flag(JsonEnvParser, value),
+                "HN_JSON={value:?} should leave JSON off"
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_utf8_env_values_do_not_error() {
+        use std::os::unix::ffi::OsStrExt;
+        let value = std::ffi::OsStr::from_bytes(&[0xff]);
+        let cmd = clap::Command::new("hn");
+        assert!(NoColorEnvParser.parse_ref(&cmd, None, value).unwrap());
+        assert!(JsonEnvParser.parse_ref(&cmd, None, value).unwrap());
+    }
+
+    #[test]
+    fn bare_no_color_and_json_flags_parse() {
+        let no_color = Cli::try_parse_from(["hn", "--no-color", "whoami"]).unwrap();
+        assert!(no_color.no_color);
+        assert!(!terminal_color_enabled(no_color.no_color, true));
+
+        let json = Cli::try_parse_from(["hn", "--json", "drafts"]).unwrap();
+        assert!(json.json);
+    }
+
+    #[test]
+    fn color_is_enabled_only_for_a_terminal_without_the_flag() {
+        assert!(terminal_color_enabled(false, true));
+        assert!(!terminal_color_enabled(true, true));
+        assert!(!terminal_color_enabled(false, false));
+        assert!(!terminal_color_enabled(true, false));
+    }
+
+    #[test]
+    fn parsed_flags_follow_the_process_environment() {
+        let cli = Cli::try_parse_from(["hn", "capabilities"]).unwrap();
+        let no_color = std::env::var_os("NO_COLOR").is_some_and(|value| !value.is_empty());
+        let json = std::env::var_os("HN_JSON").is_some_and(|value| json_env_enables(&value));
+        assert_eq!(cli.no_color, no_color);
+        assert_eq!(cli.json, json);
     }
 }

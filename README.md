@@ -300,8 +300,8 @@ Hacker News has **no official write API**. Authenticated actions use the site's 
 | --- | --- |
 | `HN_CONFIG_DIR` | Directory for session and drafts (default `~/.config/hn`) |
 | `HN_PASSWORD` | Password for non-interactive `hn login` (prefer `--password-stdin`) |
-| `HN_JSON` | Same as `--json` |
-| `NO_COLOR` | Disable color in line-oriented output |
+| `HN_JSON` | Same as `--json`. `1` and `true` enable JSON; `0` and `false` disable it; an empty value is unset |
+| `NO_COLOR` | Disable color in line-oriented output when set to any non-empty value. An empty value is unset |
 | `VISUAL` / `EDITOR` | Editor for interactive comment and edit |
 | `HN_SITE_URL` | Override the HN HTML base URL (testing/self-hosting) |
 | `HN_FIREBASE_URL` | Override the Firebase base URL (testing) |
